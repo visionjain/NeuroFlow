@@ -119,7 +119,7 @@ const SignupU = () => {
             color: "transparent",
           }}
         >
-          Lecturify +
+          NeuroFlow.
         </div>
       </div>
       <DarkModeButton />

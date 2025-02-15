@@ -109,7 +109,7 @@ export default function LoginPage() {
             color: "transparent",
           }}
         >
-          Lecturify +
+          NeuroFlow.
         </div>
       </div>
       <DarkModeButton />

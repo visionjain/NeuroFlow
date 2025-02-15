@@ -40,6 +40,7 @@ import {
     AlertDialogTitle,
     AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
+import CopyRight from "@/components/copybar/page";
 
 
 export default function ProfilePage() {
@@ -357,9 +358,7 @@ export default function ProfilePage() {
                         </div>
                     </div>
                 </div>
-                <div className="bg-[#FFFFFF]  dark:bg-[#212628] rounded-3xl ml-8 mr-8 mt-3">
-                    <div className=" h-10 flex items-center justify-center">© 2024 Turfify. All rights reserved.</div>
-                </div>
+                <CopyRight/>
             </div>
         );
     } else if (userRole === "admin") {
@@ -540,7 +539,7 @@ export default function ProfilePage() {
                         </div>
                     </div>
                 </div>
-                <div className="h-10 pt-2 border-t border-black dark:border-white flex items-center justify-center">© 2024 Turfify. All rights reserved.</div>
+                <CopyRight/>
             </div>
         );
     } else {

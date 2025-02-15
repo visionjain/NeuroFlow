@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
 
         // Ensure topic is provided
         if (!topic) {
-            return NextResponse.json({ error: "Lecture topic is required" }, { status: 400 });
+            return NextResponse.json({ error: "Project topic is required" }, { status: 400 });
         }
 
         // Find the user by userId (use _id to ensure you're querying correctly in MongoDB)
@@ -31,14 +31,14 @@ export async function POST(request: NextRequest) {
 
 
         // Ensure the `lectures` field is initialized as an array
-        if (!Array.isArray(user.lectures)) {
-            user.lectures = []; // Initialize as an empty array if not already an array
+        if (!Array.isArray(user.projects)) {
+            user.projects = []; // Initialize as an empty array if not already an array
         }
 
       
 
         // Add the new lecture topic to the user's lectures array
-        user.lectures.push({ topic });
+        user.projects.push({ topic });
 
         
 
@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
        
 
         return NextResponse.json({
-            message: "Lecture added successfully",
+            message: "Project added successfully",
             success: true,
         });
     } catch (error: any) {

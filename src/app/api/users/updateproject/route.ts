@@ -6,13 +6,13 @@ import { getDataFromToken } from "@/helpers/getDataFromToken"; // Helper to extr
 // Establish database connection
 connect();
 
-// Define the Lecture type
-type Lecture = {
+// Define the project type
+type Project = {
   _id: string;
   topic: string;
 };
 
-// Define PUT request handler to update a lecture
+// Define PUT request handler to update a project
 export async function PUT(request: NextRequest) {
     try {
         // Extract userId (or email) from the token
@@ -22,12 +22,12 @@ export async function PUT(request: NextRequest) {
             return NextResponse.json({ error: "User not authenticated" }, { status: 401 });
         }
 
-        // Extract lectureId and the new topic from the request body
-        const { lectureId, newTopic } = await request.json();
+        // Extract projectId and the new topic from the request body
+        const { projectId, newTopic } = await request.json();
 
-        // Ensure both lectureId and newTopic are provided
-        if (!lectureId || !newTopic) {
-            return NextResponse.json({ error: "Lecture ID and new topic are required" }, { status: 400 });
+        // Ensure both projectId and newTopic are provided
+        if (!projectId || !newTopic) {
+            return NextResponse.json({ error: "Project ID and new topic are required" }, { status: 400 });
         }
 
         // Find the user by userId (use _id to ensure you're querying correctly in MongoDB)
@@ -36,25 +36,25 @@ export async function PUT(request: NextRequest) {
             return NextResponse.json({ error: "User does not exist" }, { status: 400 });
         }
 
-        // Type the lectures field
-        const lectures: Lecture[] = user.lectures;
+        // Type the project field
+        const projects: Project[] = user.projects;
 
-        // Find the lecture to update by lectureId
-        const lectureIndex = lectures.findIndex((lecture: Lecture) => lecture._id.toString() === lectureId);
-        if (lectureIndex === -1) {
-            return NextResponse.json({ error: "Lecture not found" }, { status: 404 });
+        // Find the project to update by projectId
+        const projectIndex = projects.findIndex((project: Project) => project._id.toString() === projectId);
+        if (projectIndex === -1) {
+            return NextResponse.json({ error: "Project not found" }, { status: 404 });
         }
 
-        // Update the topic of the found lecture
-        lectures[lectureIndex].topic = newTopic;
+        // Update the topic of the found project
+        projects[projectIndex].topic = newTopic;
 
         // Save the updated user data in the database
         const updatedUser = await user.save();
 
         return NextResponse.json({
-            message: "Lecture updated successfully",
+            message: "Project updated successfully",
             success: true,
-            lecture: lectures[lectureIndex], // Returning the updated lecture
+            project: projects[projectIndex], // Returning the updated project
         });
     } catch (error: any) {
         console.error("Error:", error); // Log any errors for debugging

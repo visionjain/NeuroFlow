@@ -25,13 +25,13 @@ export async function POST(request: NextRequest) {
         const salt = await bcryptjs.genSalt(10);
         const hashedPassword = await bcryptjs.hash(password, salt);
 
-        // Create a new user and initialize the 'lectures' field as an empty array
+        // Create a new user and initialize the 'project' field as an empty array
         const newUser = new User({
             name,
             email,
             phoneNumber,
             password: hashedPassword,
-            lectures: [],  // Ensure 'lectures' is initialized as an empty array
+            project: [], 
         });
 
         const savedUser = await newUser.save();

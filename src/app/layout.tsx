@@ -4,8 +4,8 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"] });
 import { Toaster } from "@/components/ui/sonner";
 export const metadata: Metadata = {
-  title: "Lecturify",
-  description: "Lecturify",
+  title: "NeuroFlow",
+  description: "NeuroFlow",
 };
 
 export default function RootLayout({

@@ -109,7 +109,7 @@ const Nav: React.FC<NavProps> = ({ userDetails, userRole, loading }) => {
                 zIndex: 10, // Ensure it renders above other styles
               }}
             >
-              Lecturify +
+              NeuroFlow.
             </div>
 
             <div className="flex items-center space-x-2 mr-4">
@@ -205,7 +205,7 @@ const Nav: React.FC<NavProps> = ({ userDetails, userRole, loading }) => {
         <div className={`fixed bg-white dark:bg-[#171717] top-0 left-0 right-0 ${darkMode && "dark"}`}>
           <div className='h-14 border-b border-black dark:border-white flex justify-between items-center'>
             <div className='ml-4 mr-4 italic text-2xl font-bold tracking-tight'>
-              Lecturify
+              NeuroFlow.
             </div>
             <div className='flex items-center space-x-2 mr-4'>
               <div className='mr-1'>
@@ -271,7 +271,7 @@ const Nav: React.FC<NavProps> = ({ userDetails, userRole, loading }) => {
                 zIndex: 10, // Ensure it renders above other styles
               }}
             >
-              Lecturify +
+               NeuroFlow.
             </div>
             <div className='flex items-center space-x-2 mr-4'>
               <Button onClick={loginredirect} className='px-[2vw] ml-2 mr-2' variant="default">Login</Button>

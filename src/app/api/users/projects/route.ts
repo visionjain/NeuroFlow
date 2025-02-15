@@ -21,13 +21,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "User does not exist" }, { status: 404 });
     }
 
-    // Return the list of lectures
+    // Return the list of projects
     return NextResponse.json({
-      lectures: user.lectures || [], // Return an empty array if no lectures exist
+      projects: user.projects || [], // Return an empty array if no projects exist
       success: true,
     });
   } catch (error: any) {
-    console.error("Error fetching lectures:", error);
+    console.error("Error fetching projects:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
