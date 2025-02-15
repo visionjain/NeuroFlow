@@ -10,24 +10,36 @@ import { toast } from "sonner"; // Import toast library
 import { FaPlus, FaRegEdit, FaTrashAlt } from "react-icons/fa";
 import { TfiWrite } from "react-icons/tfi";
 import axios from "axios";
+import {
+    Select,
+    SelectContent,
+    SelectGroup,
+    SelectItem,
+    SelectLabel,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select"
 
 
 type Project = {
     _id: string;
     topic: string;
     createdAt?: string;
+    algorithm: string;
 };
 
 const Home = () => {
     const router = useRouter();
     const [isMounted, setIsMounted] = useState(false);
     const [token, setToken] = useState<string | null>(null);
-    const [projects, setProjects] = useState<Project[]>([]); 
+    const [projects, setProjects] = useState<Project[]>([]);
     const [dialogOpen, setDialogOpen] = useState(false);
     const [newProject, setNewProject] = useState("");
-    const [editingProject, setEditingProject] = useState<Project | null>(null); 
+    const [editingProject, setEditingProject] = useState<Project | null>(null);
     const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+    const [selectedAlgorithm, setSelectedAlgorithm] = useState("");
+
 
     useEffect(() => {
         setIsMounted(true);
@@ -50,7 +62,7 @@ const Home = () => {
             setProjects(response.data.projects || []);
         } catch (error) {
             console.error("Error fetching projects:", error);
-            toast.error("Failed to fetch projects", {
+            toast.error("Failed to fetch projects, please login again", {
                 style: {
                     background: 'red',
                     color: 'white',
@@ -64,54 +76,43 @@ const Home = () => {
     };
 
     const handleAddProject = async () => {
-        if (newProject.trim() === "") {
-            toast.error("Project topic cannot be empty", {
-                style: {
-                    background: 'red',
-                    color: 'white',
-                },
+        if (newProject.trim() === "" || selectedAlgorithm.trim() === "") {
+            toast.error("Project name and algorithm cannot be empty", {
+                style: { background: "red", color: "white" },
             });
             return;
         }
-
+    
         try {
             const data = {
                 topic: newProject.trim(),
+                algorithm: selectedAlgorithm, // Include selected algorithm
             };
-
-            // Send request to add project
+    
             const response = await axios.post("/api/users/project", data, {
-                headers: {
-                    Authorization: `Bearer ${localStorage.getItem("token")}`,
-                },
+                headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
             });
-
-            setNewProject(""); // Clear input
-            setDialogOpen(false); // Close dialog
+    
+            setNewProject("");
+            setSelectedAlgorithm(""); // Reset algorithm after submission
+            setDialogOpen(false);
             toast.success(response.data.message || "Project added successfully!", {
-                style: {
-                    background: 'green',
-                    color: 'white',
-                },
+                style: { background: "green", color: "white" },
             });
-
-            // Fetch updated project
-            fetchProjects();
+    
+            fetchProjects(); // Refresh project list
         } catch (error: any) {
-            console.error("Error adding project:", error.response?.data);
-            toast(error.response?.data?.error || "Failed to add project", {
-                style: {
-                    background: 'red',
-                    color: 'white',
-                },
+            toast.error(error.response?.data?.error || "Failed to add project", {
+                style: { background: "red", color: "white" },
             });
         }
     };
+    
 
     const handleOpenProject = (projectId: string) => {
         router.push(`/project/${projectId}`);  // Just pass the path
     };
-    
+
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
         if (e.key === "Enter") {
@@ -136,10 +137,10 @@ const Home = () => {
                     Authorization: `Bearer ${localStorage.getItem("token")}`,
                 },
                 data: {
-                    projectId: projectId, 
+                    projectId: projectId,
                 },
             });
-    
+
             // Handle successful deletion
             setProjects(projects.filter((project) => project._id !== projectId)); // Update state
             toast.success("Project deleted successfully", {
@@ -148,10 +149,10 @@ const Home = () => {
                     color: 'white',
                 },
             });
-    
+
             // Close the delete confirmation dialog
             setDeleteDialogOpen(false);
-    
+
         } catch (error) {
             toast.error("Failed to delete project", {
                 style: {
@@ -161,8 +162,8 @@ const Home = () => {
             });
         }
     };
-    
-      
+
+
 
     const handleDeleteConfirmation = (project: Project) => {
         setProjectToDelete(project); // Store the project to be deleted
@@ -188,7 +189,7 @@ const Home = () => {
 
             const response = await axios.put(`/api/users/updateproject`, data, {
                 headers: {
-                    Authorization: `Bearer ${localStorage.getItem("token")}` ,
+                    Authorization: `Bearer ${localStorage.getItem("token")}`,
                 },
             });
 
@@ -237,7 +238,7 @@ const Home = () => {
                         </div>
                     </div>
                 </div>
-    
+
                 {/* Table Section */}
                 <div className="flex space-x-4 pl-4 pt-4">
                     <div className="w-[99%] h-[460px] bg-[#E6E6E6] dark:bg-[#0F0F0F] rounded-3xl p-4 overflow-y-auto">
@@ -255,7 +256,7 @@ const Home = () => {
                                         <td className="p-2 border-b border-gray-700">
                                             <TfiWrite className="text-xl" />
                                         </td>
-                                        <td className="p-2 border-b border-gray-700">{project.topic}</td>
+                                        <td className="p-2 border-b border-gray-700">{project.topic} - {project.algorithm}</td>
                                         <td className="p-2 border-b border-gray-700 text-right flex justify-end space-x-2">
                                             <Button
                                                 onClick={() => handleOpenProject(project._id)}
@@ -290,7 +291,7 @@ const Home = () => {
                     </div>
                 </div>
             </div>
-    
+
             {/* Delete Confirmation Dialog */}
             <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
                 <DialogContent>
@@ -308,7 +309,7 @@ const Home = () => {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
-    
+
             {/* Dialog for Adding or Editing project */}
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
                 <DialogContent>
@@ -320,6 +321,19 @@ const Home = () => {
                             onChange={(e) => setNewProject(e.target.value)}
                             onKeyDown={handleKeyDown} // Attach the onKeyDown event
                         />
+                        <Select onValueChange={setSelectedAlgorithm}>
+                            <SelectTrigger>
+                                <SelectValue placeholder="Select a Algorithm" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectGroup>
+                                    <SelectLabel className="dark:text-[#8C9AAE]">Algorithm</SelectLabel>
+                                    <SelectItem className="dark:text-[#8C9AAE]" value="Linear regression">Linear regression</SelectItem>
+                                    <SelectItem className="dark:text-[#8C9AAE]" value="Logistic regression">Logistic regression</SelectItem>
+                                    <SelectItem className="dark:text-[#8C9AAE]" value="knn">K-Nearest Neighbor</SelectItem>
+                                </SelectGroup>
+                            </SelectContent>
+                        </Select>
                     </div>
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setDialogOpen(false)}>
@@ -340,7 +354,7 @@ const Home = () => {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
-    
+
             <CopyRight />
         </div>
     );

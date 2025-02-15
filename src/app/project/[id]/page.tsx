@@ -7,62 +7,30 @@ import { useParams } from "next/navigation";
 import Nav from "@/components/navbar/page";
 import CopyRight from "@/components/copybar/page";
 import Loader from "@/components/loader/page";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { FaWandMagicSparkles } from "react-icons/fa6";
-import { FaMicrophoneAlt } from "react-icons/fa";
-import { toast } from 'sonner';
-import ReactMarkdown from "react-markdown";
-import { saveAs } from "file-saver";
-import { Document, Packer, Paragraph, TextRun } from "docx";
-
-
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs"
-
-declare global {
-  interface Window {
-    webkitSpeechRecognition: any;
-  }
-}
+import { Label } from "@/components/ui/label";
 
 const ProjectPage = () => {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [userDetails, setUserDetails] = useState<any>(null);
   const [userRole, setUserRole] = useState("");
-  const { id } = useParams(); // Get the project ID from the URL
+  const { id } = useParams();
   const [projectDetails, setProjectDetails] = useState<any>(null);
-  const [isRecording, setIsRecording] = useState(false);
-  const [time, setTime] = useState(0); // Time in seconds
-  const [transcript, setTranscript] = useState(""); // Store the final live transcript
-  const [recognition, setRecognition] = useState<any>(null);
-  const [notes, setNotes] = useState(null);
-  const [qwiz, setQwiz] = useState(null);
-  const [flashcards, setFlashcards] = useState(null);
-  const [cheatSheet, setCheatSheet] = useState(null);
-  const [buttonText, setButtonText] = useState("Generate");
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [buttonAnimation, setButtonAnimation] = useState("");
+  const [trainFile, setTrainFile] = useState<string | null>(null);
+  const [testFile, setTestFile] = useState<string | null>(null);
+  const [showTestUpload, setShowTestUpload] = useState(true); // Toggle for test dataset button
 
-
-  // Speech Recognition Setup
-  
+  const trainInputRef = useRef<HTMLInputElement>(null);
+  const testInputRef = useRef<HTMLInputElement>(null);
 
   const formatProjectTime = (isoString: string) => {
     const date = new Date(isoString);
-    const formattedDate = date.toLocaleDateString("en-IN"); // Format as DD/MM/YYYY
-    const formattedTime = date.toLocaleTimeString("en-IN", {
+    return `${date.toLocaleDateString("en-IN")} ${date.toLocaleTimeString("en-IN", {
       hour: "2-digit",
       minute: "2-digit",
-      hour12: false, // 24-hour format
-    });
-    return `${formattedDate} ${formattedTime}`;
+      hour12: false,
+    })}`;
   };
 
   useEffect(() => {
@@ -74,24 +42,13 @@ const ProjectPage = () => {
         setUserRole(data.role);
         setLoading(false);
 
-        // Find the project based on the ID
-        const project = data.projects.find(
-          (project: any) => project._id.toString() === id
-        );
-
+        const project = data.projects.find((project: any) => project._id.toString() === id);
         if (project) {
           setProjectDetails({
             projectId: project._id,
             projectName: project.topic,
             ProjectTime: formatProjectTime(project.createdAt),
           });
-
-          // Set the transcript to the state if it exists
-          setTranscript(project.transcript || "");
-          setNotes(project.notes || "");
-          setQwiz(project.qwiz || "");
-          setFlashcards(project.flashcards || "");
-          setCheatSheet(project.cheatSheet || "");
         } else {
           console.error("Project not found");
         }
@@ -109,7 +66,6 @@ const ProjectPage = () => {
     }
   }, [router, id]);
 
-
   const expirylogout = async () => {
     try {
       await axios.get("/api/users/logout");
@@ -117,6 +73,31 @@ const ProjectPage = () => {
     } catch (error) {
       console.error("Error logging out:", error);
     }
+  };
+
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>, type: string) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      if (type === "Train") {
+        setTrainFile(file.name);
+      } else if (type === "Test") {
+        setTestFile(file.name);
+      }
+    }
+  };
+
+  const toggleTestDataset = () => {
+    setShowTestUpload((prev) => {
+      // Clear both files when toggling
+      setTrainFile(null);
+      setTestFile(null);
+
+      // Reset both file inputs
+      if (trainInputRef.current) trainInputRef.current.value = "";
+      if (testInputRef.current) testInputRef.current.value = "";
+
+      return !prev;
+    });
   };
 
   if (!projectDetails) {
@@ -131,26 +112,99 @@ const ProjectPage = () => {
     <div>
       <div className="h-[100vh] pt-24">
         <Nav loading={loading} userRole={userRole} userDetails={userDetails} />
-        <div
-          className="h-[90%] dark:bg-[#212628] rounded-3xl ml-8 bg-white mr-8 overflow-y-auto"
-          style={{ maxHeight: "90vh" }}
-        >
+        <div className="h-[90%] dark:bg-[#212628] rounded-3xl ml-8 bg-white mr-8 overflow-y-auto" style={{ maxHeight: "90vh" }}>
           <div>
-            <div className="text-xl ">
+            <div className="text-xl">
               <div className="pl-4 pt-4 font-bold">
                 <h1 className="italic text-3xl">
-                  {projectDetails.projectName} {" "}
-                  <span className="text-base lowercase">
-                    {projectDetails.ProjectTime}
-                  </span>
+                  {projectDetails.projectName}{" "}
+                  <span className="text-base lowercase">{projectDetails.ProjectTime}</span>
                 </h1>
               </div>
 
-              <div
-                className={`h-16 border border-[rgb(61,68,77)] flex justify-center mt-4 dark:bg-[#0E0E0E] bg-[#E6E6E6] rounded-xl ml-4 mr-4`}
-              >
-              </div>
+              {/* Buttons Section */}
+              <div className="border border-[rgb(61,68,77)] flex flex-col gap-6 dark:bg-[#0E0E0E] bg-[#E6E6E6] rounded-xl ml-4 mr-4 p-4">
+                <div className="flex">
+                  <div className="dark:bg-[#212628] rounded-xl w-[25%] bg-white">
+                    <div className="flex justify-center items-center gap-8 mt-4 mb-3">
+                      {/* Train Data Selection */}
+                      <div className="flex flex-col items-center">
+                        <input
+                          type="file"
+                          id="trainDataset"
+                          accept=".csv, .xlsx"
+                          ref={trainInputRef}
+                          onChange={(e) => handleFileSelect(e, "Train")}
+                          hidden
+                        />
+                        <Button
+                          className="w-28 h-28 flex flex-col justify-center items-center border-2 border-dashed border-gray-500 rounded-lg 
+                      hover:bg-gray-100 hover:text-black dark:text-black dark:hover:bg-gray-800 dark:hover:border-gray-300 transition group"
+                          onClick={() => trainInputRef.current?.click()}
+                        >
+                          {trainFile ? (
+                            <>
+                              <span className="text-lg font-bold dark:text-black dark:group-hover:text-white">Train Data</span>
+                              <p className="text-sm text-gray-500 dark:text-grey-600 dark:group-hover:text-white mt-2">{trainFile}</p>
+                            </>
+                          ) : (
+                            <>
+                              <span className="text-4xl">+</span>
+                              <p className="text-sm mt-2">Select <br /> Train Data</p>
+                            </>
+                          )}
+                        </Button>
+                      </div>
 
+                      {/* Test Data Selection */}
+                      {showTestUpload && (
+                        <div className="flex flex-col items-center">
+                          <input
+                            type="file"
+                            id="testDataset"
+                            accept=".csv, .xlsx"
+                            ref={testInputRef}
+                            onChange={(e) => handleFileSelect(e, "Test")}
+                            hidden
+                          />
+                          <Button
+                            className="w-28 h-28 flex flex-col justify-center items-center border-2 border-dashed border-gray-500 rounded-lg 
+                        hover:bg-gray-100 hover:text-black dark:hover:bg-gray-800 dark:hover:border-gray-300 transition group"
+                            onClick={() => testInputRef.current?.click()}
+                          >
+                            {testFile ? (
+                              <>
+                                <span className="text-lg font-bold dark:text-black dark:group-hover:text-white">Test Data</span>
+                                <p className="text-sm text-gray-500 dark:text-grey-600 dark:group-hover:text-white mt-2">{testFile}</p>
+                              </>
+                            ) : (
+                              <>
+                                <span className="text-4xl">+</span>
+                                <p className="text-sm mt-2">Select <br /> Test Data</p>
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Toggle Button for Test Dataset */}
+                    <p className="underline mb-3 flex justify-center text-sm text-blue-600 cursor-pointer" onClick={toggleTestDataset}>
+                      {showTestUpload ? "Don't have a test dataset?" : "Have a test dataset?"}
+                    </p>
+                  </div>
+                  <div className="dark:bg-[#212628] rounded-xl w-[25%] bg-white ml-4">
+                    
+                  </div>
+                </div>
+              </div>
+              <div className="ml-4 text-xl font-bold italic mt-2">TERMINAL</div>
+              <div className="border border-[rgb(61,68,77)] h-60 flex flex-col gap-6 dark:bg-[#0E0E0E] bg-[#E6E6E6] rounded-xl ml-4 mr-4 text-sm p-4 overflow-y-auto">
+
+                Terminal Output will be here.
+
+
+              </div>
             </div>
           </div>
         </div>

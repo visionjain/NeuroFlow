@@ -3,11 +3,15 @@ import mongoose from "mongoose";
 const ModelSchema = new mongoose.Schema({
   topic: {
     type: String,
-    required: [true, "Please provide a lecture topic"],
+    required: [true, "Please provide a project topic"],
   },
   createdAt: {
     type: Date,
     default: Date.now,
+  },
+  algorithm: {
+    type: String,
+    required: [true, "Please Choose a Algorithm"],
   }
 });
 
