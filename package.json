@@ -9,7 +9,6 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@google/generative-ai": "^0.21.0",
     "@heroicons/react": "^2.2.0",
     "@material-tailwind/react": "^2.1.10",
     "@radix-ui/react-alert-dialog": "^1.0.5",
@@ -27,15 +26,12 @@
     "@radix-ui/react-slot": "^1.0.2",
     "@radix-ui/react-tabs": "^1.1.2",
     "@radix-ui/react-toast": "^1.1.5",
-    "@types/googlemaps": "^3.43.3",
     "axios": "^1.6.8",
     "bcryptjs": "^2.4.3",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.0",
     "cmdk": "^1.0.0",
     "date-fns": "^3.6.0",
-    "docx": "^9.1.1",
-    "file-saver": "^2.0.5",
     "jsonwebtoken": "^9.0.2",
     "lucide-react": "^0.356.0",
     "mongoose": "^8.2.2",
@@ -54,7 +50,7 @@
     "sonner": "^1.4.3",
     "tailwind-merge": "^2.2.1",
     "tailwindcss-animate": "^1.0.7",
-    "turfx": "file:"
+    "neuroflow": "file:"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
