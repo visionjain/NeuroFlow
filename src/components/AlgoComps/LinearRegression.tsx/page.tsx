@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState, useRef } from "react";
-import { FaPlay } from "react-icons/fa";
+import React, { useState, useEffect, useRef } from "react";
+import { FaPlay, FaSpinner } from "react-icons/fa";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -19,7 +19,15 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
     const [showTestUpload, setShowTestUpload] = useState(true);
     const trainInputRef = useRef<HTMLInputElement>(null);
     const testInputRef = useRef<HTMLInputElement>(null);
+    const terminalRef = useRef<HTMLDivElement>(null);
+    const [isRunning, setIsRunning] = useState<boolean>(false);
     const [logs, setLogs] = useState<string>("");
+
+    useEffect(() => {
+        if (terminalRef.current) {
+            terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
+        }
+    }, [logs]);
 
 
     const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>, type: string) => {
@@ -45,22 +53,27 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
 
     const handleRunScript = () => {
         setLogs(""); // Clear previous logs
+        setIsRunning(true); // Disable button
+
         const eventSource = new EventSource("/api/users/scripts/linearregression");
 
         eventSource.onmessage = (event) => {
-            setLogs((prevLogs) => prevLogs + event.data + "\n");
+            if (event.data === "END_OF_STREAM") {
+                eventSource.close();
+                setIsRunning(false); // Re-enable button when script ends
+            } else {
+                setLogs((prevLogs) => prevLogs + event.data + "\n");
+            }
         };
 
         eventSource.onerror = (error) => {
             console.error("EventSource failed:", error);
             eventSource.close();
+            setIsRunning(false); // Re-enable button in case of an error
         };
-
-        eventSource.addEventListener("end", () => {
-            console.log("SSE Connection Closed.");
-            eventSource.close();
-        });
     };
+
+
 
 
     return (
@@ -94,8 +107,8 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
                         </TabsList>
 
 
-                        <Button className="rounded-xl" onClick={handleRunScript}>
-                            <FaPlay />
+                        <Button className="rounded-xl" onClick={handleRunScript} disabled={isRunning}>
+                            {isRunning ? <FaSpinner className="animate-spin" /> : <FaPlay />}
                         </Button>
 
                     </div>
@@ -198,8 +211,11 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
 
                         {/* Terminal Tab Content */}
                         <TabsContent value="terminal">
-                            <div className="border border-[rgb(61,68,77)] h-[490px] dark:bg-[#0E0E0E] bg-[#E6E6E6] rounded-xl ml-4 mr-4 text-sm p-4 overflow-y-auto">
-                                <pre className="whitespace-pre-wrap">{logs || "Terminal Output will be here."}</pre>
+                            <div
+                                ref={terminalRef}
+                                className="border border-[rgb(61,68,77)] h-[490px] dark:bg-[#0E0E0E] bg-[#E6E6E6] rounded-xl ml-4 mr-4 text-sm p-4 overflow-y-auto"
+                            >
+                                <pre className="whitespace-pre-wrap">{logs || "Terminal Output will be shown here."}</pre>
                             </div>
                         </TabsContent>
                     </div>

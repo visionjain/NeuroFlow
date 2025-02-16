@@ -14,26 +14,40 @@ export async function GET(req: NextRequest) {
                     process.stdout.setEncoding("utf8");
                     process.stderr.setEncoding("utf8");
 
+                    let isClosed = false;
+
                     const sendData = (data: string) => {
-                        data.split("\n").forEach((line) => {
-                            if (line.trim()) controller.enqueue(`data: ${line.trim()}\n\n`);
-                        });
+                        if (!isClosed) {
+                            data.split("\n").forEach((line) => {
+                                if (line.trim()) {
+                                    controller.enqueue(`data: ${line.trim()}\n\n`);
+                                }
+                            });
+                        }
                     };
 
-                    // Stream both stdout and stderr
+                    // Handle standard output
                     process.stdout.on("data", (data) => sendData(data.toString()));
-                    process.stderr.on("data", (data) => sendData(data.toString()));
+                    process.stderr.on("data", (data) => sendData(data.toString())); // No "ERROR:" prefix
 
-                    // Handle process closure
+                    // Process exit handling
                     process.on("close", (code) => {
-                        sendData(`Process exited with code ${code}`);
-                        setTimeout(() => controller.close(), 100); // Ensure all logs are sent before closing
+                        if (!isClosed) {
+                            sendData(`Process exited with code ${code}`);
+                            sendData("END_OF_STREAM"); // Notify frontend that script has finished
+                            controller.close();
+                            isClosed = true;
+                        }
                     });
 
-                    // Handle process errors
+                    // Handle unexpected errors
                     process.on("error", (err) => {
-                        sendData(`Error: ${err.message}`);
-                        setTimeout(() => controller.close(), 100);
+                        if (!isClosed) {
+                            sendData(`Error: ${err.message}`);
+                            sendData("END_OF_STREAM");
+                            controller.close();
+                            isClosed = true;
+                        }
                     });
                 },
             }),
@@ -41,12 +55,14 @@ export async function GET(req: NextRequest) {
                 headers: {
                     "Content-Type": "text/event-stream",
                     "Cache-Control": "no-cache",
-                    Connection: "keep-alive",
+                    "Connection": "keep-alive",
                     "Access-Control-Allow-Origin": "*",
                 },
             }
         );
-    } catch (error) {
-        return new Response(`data: Error: ${error}\n\n`, { status: 500 });
+    } catch (error: unknown) {
+        // Send the error message via SSE format
+        const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
+        return new Response(`data: ${errorMessage}\n\n`, { status: 500 });
     }
 }
