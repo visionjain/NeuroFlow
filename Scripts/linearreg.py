@@ -12,7 +12,7 @@ from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_squared_error, r2_score, accuracy_score
 import joblib
 
-# ====== Function to Create Log File in Output Directory Early ======
+# ====== Function to Create Log File in Output Directory ======
 def get_output_dir(csv_path):
     """Creates and returns an output directory based on the CSV filename."""
     base_path = os.path.dirname(csv_path)
@@ -21,11 +21,11 @@ def get_output_dir(csv_path):
     os.makedirs(output_dir, exist_ok=True)
     return output_dir
 
-# ====== Set Paths for Datasets (Modify these as needed) ======
+# ====== Set Paths for Datasets ======
 train_csv_path = "D:\\web projects\\NeuroFlow\\DataSets\\Diabetes Dataset\\archive\\diabetes.csv"
-test_csv_path = "D:\\web projects\\NeuroFlow\\DataSets\\Diabetes Dataset\\archive\\diabetes-test.csv"  # Set this to None if only train file is available
+test_csv_path = "D:\\web projects\\NeuroFlow\\DataSets\\Diabetes Dataset\\archive\\diabetes-test.csv"
 
-# ====== Initialize Logging Early to Capture Everything ======
+# ====== Initialize Logging to File and Console ======
 output_dir = get_output_dir(train_csv_path)
 log_file = os.path.join(output_dir, "setup_log.txt")
 
@@ -33,6 +33,7 @@ logging.basicConfig(
     filename=log_file,
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
+    filemode="w",  # Reset log file on every execution
 )
 
 console_handler = logging.StreamHandler()
@@ -41,7 +42,12 @@ formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
 console_handler.setFormatter(formatter)
 logging.getLogger().addHandler(console_handler)
 
-logging.info("========== SCRIPT STARTED ==========")
+def log_and_print(message):
+    """Logs and prints the message to ensure full visibility."""
+    logging.info(message)
+    sys.stdout.flush()
+
+log_and_print("========== SCRIPT STARTED ==========")
 
 # ====== Function to Run Commands and Capture Logs ======
 def run_command(command):
@@ -49,37 +55,35 @@ def run_command(command):
     try:
         process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         for line in process.stdout:
-            print(line, end="")
-            logging.info(line.strip())
+            log_and_print(line.strip())
         for line in process.stderr:
-            print(line, end="")
-            logging.error(line.strip())
+            log_and_print(line.strip())
         process.wait()
         if process.returncode != 0:
             sys.exit(1)
     except subprocess.CalledProcessError as e:
-        logging.error(f"Command failed: {command}\nError: {e}")
+        log_and_print(f"Command failed: {command}\nError: {e}")
         sys.exit(1)
 
 # ====== Check Python Installation ======
 try:
     run_command("python --version")
 except FileNotFoundError:
-    logging.error("Python is not installed. Please install Python first.")
+    log_and_print("Python is not installed. Please install Python first.")
     sys.exit(1)
 
 # ====== Upgrade pip ======
 run_command("python -m pip install --upgrade pip")
 
-# ====== Install Required Packages with Logging ======
+# ====== Install Required Packages ======
 def install_package(package):
     """Installs a package and logs the process."""
     try:
-        logging.info(f"Installing {package}...")
+        log_and_print(f"Installing {package}...")
         run_command(f"python -m pip install {package}")
-        logging.info(f"Successfully installed {package}")
+        log_and_print(f"Successfully installed {package}")
     except Exception as e:
-        logging.error(f"Failed to install {package}: {e}")
+        log_and_print(f"Failed to install {package}: {e}")
         sys.exit(1)
 
 packages = ["pandas", "numpy", "matplotlib", "seaborn", "scikit-learn", "joblib", "six"]
@@ -91,13 +95,36 @@ for package in packages:
 
 # ====== Check If Dataset Exists ======
 if not os.path.exists(train_csv_path):
-    logging.error(f"Training dataset not found at {train_csv_path}. Exiting.")
+    log_and_print(f"Training dataset not found at {train_csv_path}. Exiting.")
     sys.exit(1)
 
 df_train = pd.read_csv(train_csv_path)
 df_test = pd.read_csv(test_csv_path) if test_csv_path and os.path.exists(test_csv_path) else None
 
-logging.info("Loaded dataset successfully.")
+log_and_print(f"Dataset Loaded Successfully! Shape: {df_train.shape}")
+
+
+logging.info("========== Data Cleaning & Exploration ==========")
+
+# Show basic data info
+logging.info(f"\nFirst 5 rows:\n{df_train.head()}")
+logging.info(f"\nData Summary:\n{df_train.describe()}")
+logging.info(f"\nMissing Values:\n{df_train.isnull().sum()}")
+logging.info(f"\nCorrelation Matrix:\n{df_train.corr()}")
+
+# Handle missing values
+df_train.fillna(df_train.median(), inplace=True)
+
+# Remove duplicate rows
+df_train.drop_duplicates(inplace=True)
+
+# Remove outliers using Z-score
+from scipy import stats
+z_scores = np.abs(stats.zscore(df_train.select_dtypes(include=[np.number])))
+df_train = df_train[(z_scores < 3).all(axis=1)]
+
+logging.info("Data cleaning completed.")
+print("\nData Cleaning & Exploration Done. Check logs for details.")
 
 # ====== Save Feature Correlation Heatmap ======
 heatmap_path = os.path.join(output_dir, "heatmap.png")
@@ -106,7 +133,7 @@ sns.heatmap(df_train.corr(), annot=True, cmap="coolwarm")
 plt.title("Feature Correlation Heatmap")
 plt.savefig(heatmap_path)
 plt.close()
-logging.info(f"Feature correlation heatmap saved to {heatmap_path}")
+log_and_print(f"Feature correlation heatmap saved to {heatmap_path}")
 
 # ====== Save Histogram of Outcome Distribution ======
 histogram_path = os.path.join(output_dir, "Histogram_distribution.png")
@@ -115,7 +142,7 @@ sns.histplot(df_train['Outcome'], bins=3, kde=True)
 plt.title("Distribution of Diabetes Outcome")
 plt.savefig(histogram_path)
 plt.close()
-logging.info(f"Outcome distribution histogram saved to {histogram_path}")
+log_and_print(f"Outcome distribution histogram saved to {histogram_path}")
 
 # ====== Prepare Features and Target ======
 X_train = df_train.drop(columns=["Outcome"])
@@ -131,11 +158,12 @@ if df_test is not None:
 else:
     X_train_scaled, X_test_scaled, y_train, y_test = train_test_split(X_train_scaled, y_train, test_size=0.2, random_state=42)
 
-logging.info("Data pre-processing completed.")
+log_and_print("Data Pre-processing Completed.")
 
 # ====== Train Model ======
 model = LinearRegression()
 model.fit(X_train_scaled, y_train)
+log_and_print("Model Training Completed!")
 
 # ====== Make Predictions ======
 y_pred = model.predict(X_test_scaled)
@@ -146,15 +174,15 @@ mse = mean_squared_error(y_test, y_pred)
 r2 = r2_score(y_test, y_pred)
 accuracy = accuracy_score(y_test, y_pred_binary)
 
-logging.info("\nModel Performance:")
-logging.info(f"Mean Squared Error: {mse}")
-logging.info(f"R-squared Score: {r2}")
-logging.info(f"Accuracy Score: {accuracy}")
+log_and_print("\n======= Model Performance =======")
+log_and_print(f"Mean Squared Error: {mse:.4f}")
+log_and_print(f"R-squared Score: {r2:.4f}")
+log_and_print(f"Accuracy Score: {accuracy:.4f}")
 
 # ====== Save Model ======
 model_path = os.path.join(output_dir, "model.pkl")
 joblib.dump(model, model_path)
-logging.info(f"Model saved as '{model_path}'")
+log_and_print(f"Model saved as '{model_path}'")
 
 # ====== Save Paths to a File ======
 path_file = os.path.join(output_dir, "saved_paths.txt")
@@ -162,5 +190,5 @@ with open(path_file, "w") as f:
     f.write(f"Model Path: {model_path}\n")
     f.write(f"CSV Path: {train_csv_path}\n")
 
-logging.info(f"Saved paths in '{path_file}'")
-logging.info("========== SCRIPT FINISHED SUCCESSFULLY ==========")
+log_and_print(f"Saved paths in '{path_file}'")
+log_and_print("========== SCRIPT FINISHED SUCCESSFULLY ==========")
