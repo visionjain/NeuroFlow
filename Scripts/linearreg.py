@@ -13,6 +13,8 @@ from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_squared_error, r2_score, accuracy_score
 import joblib
 
+
+
 # ====== Parse Command-Line Arguments ======
 parser = argparse.ArgumentParser(description="Run Linear Regression Model")
 parser.add_argument("--train_csv_path", required=True, help="Path to the training dataset CSV")
@@ -21,6 +23,8 @@ args = parser.parse_args()
 
 train_csv_path = args.train_csv_path
 test_csv_path = args.test_csv_path if args.test_csv_path and args.test_csv_path.lower() != "none" else None
+
+
 
 # ====== Function to Create Log File in Output Directory ======
 def get_output_dir(csv_path):
@@ -31,6 +35,8 @@ def get_output_dir(csv_path):
     os.makedirs(output_dir, exist_ok=True)
     return output_dir
 
+
+
 # ====== Initialize Logging ======
 output_dir = get_output_dir(train_csv_path)
 log_file = os.path.join(output_dir, "setup_log.txt")
@@ -38,19 +44,18 @@ log_file = os.path.join(output_dir, "setup_log.txt")
 logging.basicConfig(
     filename=log_file,
     level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
+    format=" %(message)s",
     filemode="w",
 )
 
 console_handler = logging.StreamHandler()
 console_handler.setLevel(logging.INFO)
-formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+formatter = logging.Formatter("%(message)s")
 console_handler.setFormatter(formatter)
 logging.getLogger().addHandler(console_handler)
 
 def log_and_print(message):
     """Logs and prints the message."""
-    logging.info(message)
     print(message)
     sys.stdout.flush()
 
