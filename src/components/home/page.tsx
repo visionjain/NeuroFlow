@@ -82,24 +82,24 @@ const Home = () => {
             });
             return;
         }
-    
+
         try {
             const data = {
                 topic: newProject.trim(),
                 algorithm: selectedAlgorithm, // Include selected algorithm
             };
-    
+
             const response = await axios.post("/api/users/project", data, {
                 headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
             });
-    
+
             setNewProject("");
             setSelectedAlgorithm(""); // Reset algorithm after submission
             setDialogOpen(false);
             toast.success(response.data.message || "Project added successfully!", {
                 style: { background: "green", color: "white" },
             });
-    
+
             fetchProjects(); // Refresh project list
         } catch (error: any) {
             toast.error(error.response?.data?.error || "Failed to add project", {
@@ -107,7 +107,7 @@ const Home = () => {
             });
         }
     };
-    
+
 
     const handleOpenProject = (projectId: string) => {
         router.push(`/project/${projectId}`);  // Just pass the path
@@ -227,9 +227,18 @@ const Home = () => {
                     <div className="w-[99%] h-16 bg-[#E6E6E6] dark:bg-[#0F0F0F] rounded-3xl flex flex-col justify-center items-center text-center space-y-4">
                         <div>
                             {token ? (
-                                <Button className="rounded-3xl px-20" onClick={() => setDialogOpen(true)}>
+                                <Button
+                                    className="rounded-3xl px-20"
+                                    onClick={() => {
+                                        setEditingProject(null); // Ensure it's a new project
+                                        setNewProject(""); // Reset project name
+                                        setSelectedAlgorithm(""); // Reset algorithm selection
+                                        setDialogOpen(true); // Open the dialog
+                                    }}
+                                >
                                     <FaPlus className="mr-2" /> New Project
                                 </Button>
+
                             ) : (
                                 <Button className="rounded-3xl " onClick={handleLoginRedirect}>
                                     <FaPlus className="mr-2" /> Login To Create
@@ -315,26 +324,33 @@ const Home = () => {
                 <DialogContent>
                     <DialogTitle>{editingProject ? "Edit Project" : "Add New Project"}</DialogTitle>
                     <div className="space-y-4">
+                        {/* Project Name Input */}
                         <Input
                             placeholder="Enter project name"
                             value={newProject}
                             onChange={(e) => setNewProject(e.target.value)}
-                            onKeyDown={handleKeyDown} // Attach the onKeyDown event
+                            onKeyDown={handleKeyDown}
                         />
-                        <Select onValueChange={setSelectedAlgorithm}>
-                            <SelectTrigger>
-                                <SelectValue placeholder="Select a Algorithm" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectGroup>
-                                    <SelectLabel className="dark:text-[#8C9AAE]">Algorithm</SelectLabel>
-                                    <SelectItem className="dark:text-[#8C9AAE]" value="Linear regression">Linear regression</SelectItem>
-                                    <SelectItem className="dark:text-[#8C9AAE]" value="Logistic regression">Logistic regression</SelectItem>
-                                    <SelectItem className="dark:text-[#8C9AAE]" value="knn">K-Nearest Neighbor</SelectItem>
-                                </SelectGroup>
-                            </SelectContent>
-                        </Select>
+
+                        {/* Show Algorithm Selection only when adding a new project */}
+                        {!editingProject && (
+                            <Select onValueChange={setSelectedAlgorithm} value={selectedAlgorithm}>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select an Algorithm" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectGroup>
+                                        <SelectLabel className="dark:text-[#8C9AAE]">Algorithm</SelectLabel>
+                                        <SelectItem className="dark:text-[#8C9AAE]" value="Linear regression">Linear Regression</SelectItem>
+                                        <SelectItem className="dark:text-[#8C9AAE]" value="Logistic regression">Logistic Regression</SelectItem>
+                                        <SelectItem className="dark:text-[#8C9AAE]" value="knn">K-Nearest Neighbor</SelectItem>
+                                    </SelectGroup>
+                                </SelectContent>
+                            </Select>
+                        )}
                     </div>
+
+                    {/* Dialog Footer with Buttons */}
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setDialogOpen(false)}>
                             Cancel
@@ -342,10 +358,9 @@ const Home = () => {
                         <Button
                             onClick={async () => {
                                 if (editingProject) {
-                                    // Handle update
                                     await handleUpdateProject(editingProject._id);
                                 } else {
-                                    handleAddProject(); // Handle add
+                                    handleAddProject();
                                 }
                             }}
                         >
@@ -354,6 +369,7 @@ const Home = () => {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
 
             <CopyRight />
         </div>

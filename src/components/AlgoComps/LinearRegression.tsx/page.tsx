@@ -82,24 +82,42 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
                 {/* Tabs Wraps Everything Now */}
                 <Tabs defaultValue="home">
                     {/* Project Title & Tabs in One Row */}
-                    <div className="flex items-center justify-between px-4 pt-4">
+                    <div className="flex items-center justify-between px-4 mt-2">
                         <div className="font-bold">
                             <h1 className="italic text-2xl">
                                 {projectName} - {projectAlgo}{" "}
-                                <span className="text-base lowercase">{projectTime}</span>
+                                <span className="text-sm lowercase">{projectTime}</span>
                             </h1>
                         </div>
 
                         {/* Tabs Navigation */}
                         <TabsList className="flex w-[40%] text-black dark:text-white bg-[#e6e6e6] dark:bg-[#0F0F0F]">
                             <TabsTrigger
-                                className="w-[25%] border border-transparent data-[state=active]:border-[rgb(61,68,77)] data-[state=active]:rounded-md data-[state=active]:bg-[#212628]"
+                                className="w-[30%] border border-transparent data-[state=active]:border-[rgb(61,68,77)] data-[state=active]:rounded-md data-[state=active]:bg-[#212628]"
                                 value="home"
                             >
                                 Home
                             </TabsTrigger>
                             <TabsTrigger
-                                className="w-[25%] border border-transparent data-[state=active]:border-[rgb(61,68,77)] data-[state=active]:rounded-md data-[state=active]:bg-[#212628]"
+                                className="w-[30%] border border-transparent data-[state=active]:border-[rgb(61,68,77)] data-[state=active]:rounded-md data-[state=active]:bg-[#212628]"
+                                value="graphs"
+                            >
+                                Graphs
+                            </TabsTrigger>
+                            <TabsTrigger
+                                className="w-[30%] border border-transparent data-[state=active]:border-[rgb(61,68,77)] data-[state=active]:rounded-md data-[state=active]:bg-[#212628]"
+                                value="analysis"
+                            >
+                                Analysis
+                            </TabsTrigger>
+                            <TabsTrigger
+                                className="w-[30%] border border-transparent data-[state=active]:border-[rgb(61,68,77)] data-[state=active]:rounded-md data-[state=active]:bg-[#212628]"
+                                value="result"
+                            >
+                                Results
+                            </TabsTrigger>
+                            <TabsTrigger
+                                className="w-[30%] border border-transparent data-[state=active]:border-[rgb(61,68,77)] data-[state=active]:rounded-md data-[state=active]:bg-[#212628]"
                                 value="terminal"
                             >
                                 Terminal
@@ -114,13 +132,13 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
                     </div>
 
                     {/* Tabs Content (Stays Fixed in Place) */}
-                    <div className="mt-4">
+                    <div className="mt-2">
                         <TabsContent value="home">
-                            <div className="border border-[rgb(61,68,77)] flex flex-col gap-6 dark:bg-[#0E0E0E] bg-[#E6E6E6] rounded-xl ml-4 mr-4 p-4">
+                            <div className="border border-[rgb(61,68,77)] flex flex-col gap-3 dark:bg-[#0E0E0E] bg-[#E6E6E6] rounded-xl ml-4 mr-4 p-4">
                                 {/* First Row */}
                                 <div className="flex gap-x-3">
-                                    <div className="dark:bg-[#212628] h-48 rounded-xl w-1/3 bg-white">
-                                        <div className="flex justify-center items-center gap-8 mt-8">
+                                    <div className="dark:bg-[#212628] h-52 rounded-xl w-1/3 bg-white">
+                                        <div className="flex justify-center items-center gap-8 mt-10">
                                             {/* Train Data Selection */}
                                             <div className="flex flex-col items-center">
                                                 <input
@@ -185,13 +203,13 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
                                             {showTestUpload ? "Don't have a test dataset?" : "Have a test dataset?"}
                                         </p>
                                     </div>
-                                    <div className="dark:bg-[#212628] h-48 rounded-xl w-1/3 bg-white">
+                                    <div className="dark:bg-[#212628] h-52 rounded-xl w-1/3 bg-white">
                                         <div>Select Train Column</div>
                                         <div>
                                             <Checkbox /> Column Names
                                         </div>
                                     </div>
-                                    <div className="dark:bg-[#212628] h-48 rounded-xl w-1/3 bg-white">
+                                    <div className="dark:bg-[#212628] h-52 rounded-xl w-1/3 bg-white">
                                         <div>Select Test Column</div>
                                         <div>
                                             <Checkbox /> Column Names
@@ -201,9 +219,9 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
 
                                 {/* Second Row */}
                                 <div className="flex gap-x-3">
-                                    <div className="dark:bg-[#212628] h-60 rounded-xl w-1/3 bg-white"></div>
-                                    <div className="dark:bg-[#212628] h-60 rounded-xl w-1/3 bg-white"></div>
-                                    <div className="dark:bg-[#212628] h-60 rounded-xl w-1/3 bg-white"></div>
+                                    <div className="dark:bg-[#212628] h-64 rounded-xl w-1/3 bg-white"></div>
+                                    <div className="dark:bg-[#212628] h-64 rounded-xl w-1/3 bg-white"></div>
+                                    <div className="dark:bg-[#212628] h-64 rounded-xl w-1/3 bg-white"></div>
                                 </div>
                             </div>
 
@@ -213,7 +231,7 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
                         <TabsContent value="terminal">
                             <div
                                 ref={terminalRef}
-                                className="border border-[rgb(61,68,77)] h-[490px] dark:bg-[#0E0E0E] bg-[#E6E6E6] rounded-xl ml-4 mr-4 text-sm p-4 overflow-y-auto"
+                                className="border border-[rgb(61,68,77)] h-[505px] dark:bg-[#0E0E0E] bg-[#E6E6E6] rounded-xl ml-4 mr-4 text-sm p-4 overflow-y-auto"
                             >
                                 <pre className="whitespace-pre-wrap">{logs || "Terminal Output will be shown here."}</pre>
                             </div>
