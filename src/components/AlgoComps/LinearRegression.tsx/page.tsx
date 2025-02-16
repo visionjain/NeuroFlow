@@ -28,6 +28,7 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
     const [testSplitRatio, setTestSplitRatio] = useState<string>("");
 
 
+
     useEffect(() => {
         if (terminalRef.current) {
             terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
@@ -39,16 +40,17 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
     const handleTestSplitChange = (event: React.ChangeEvent<HTMLInputElement>) => {
         let value = event.target.value;
 
-        // Ensure valid number format
-        if (/^\d*(\.\d{0,2})?$/.test(value)) {
-            // Convert to number and ensure it stays within range
-            let numValue = parseFloat(value);
-            if (!isNaN(numValue) && numValue >= 0.01 && numValue <= 0.99) {
-                setTestSplitRatio(value);
-            }
+        // Allow only valid decimal numbers (empty string is also allowed for smooth typing)
+        if (/^\d*\.?\d{0,2}$/.test(value) || value === "") {
+            setTestSplitRatio(value);
         }
     };
-
+    const handleTestSplitBlur = () => {
+        let numValue = parseFloat(testSplitRatio);
+        if (isNaN(numValue) || numValue < 0.01 || numValue > 0.99) {
+            setTestSplitRatio("0.2"); // Default value
+        }
+    };
 
 
     const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>, type: string) => {
@@ -79,36 +81,38 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
     const handleRunScript = () => {
         setLogs(""); // Clear previous logs
         setIsRunning(true); // Disable button
-
+    
         if (!datasetPath || !trainFile) {
             alert("Dataset path and train file are required.");
             setIsRunning(false);
             return;
         }
-
+    
         // Normalize datasetPath to avoid double backslashes
         let normalizedPath = datasetPath.trim();
         if (normalizedPath.endsWith("\\") || normalizedPath.endsWith("/")) {
             normalizedPath = normalizedPath.slice(0, -1);
         }
-
+    
         // Construct file paths correctly
         const train_csv_path = normalizedPath.replace(/\\/g, "\\\\") + "\\\\" + trainFile;
         const test_csv_path = testFile ? normalizedPath.replace(/\\/g, "\\\\") + "\\\\" + testFile : "None";
-
-        console.log("Train Path:", train_csv_path);
-        console.log("Test Path:", test_csv_path);
-
-        // Send paths as query parameters
+    
+        // Prepare API query params
         const queryParams = new URLSearchParams({
             train_csv_path,
             test_csv_path,
-        }).toString();
-
-        const apiUrl = `/api/users/scripts/linearregression?${queryParams}`;
-
+        });
+    
+        // If no test file is uploaded, send test split ratio
+        if (!testFile && testSplitRatio) {
+            queryParams.append("test_split_ratio", testSplitRatio);
+        }
+    
+        const apiUrl = `/api/users/scripts/linearregression?${queryParams.toString()}`;
+    
         const eventSource = new EventSource(apiUrl);
-
+    
         eventSource.onmessage = (event) => {
             if (event.data === "END_OF_STREAM") {
                 eventSource.close();
@@ -117,13 +121,14 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
                 setLogs((prevLogs) => prevLogs + event.data + "\n");
             }
         };
-
+    
         eventSource.onerror = (error) => {
             console.error("EventSource failed:", error);
             eventSource.close();
             setIsRunning(false); // Re-enable button in case of an error
         };
     };
+    
 
 
 
@@ -236,31 +241,51 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
                                             </div>
 
                                             {/* Conditional UI: Test File Upload OR Test Set Split Ratio */}
-                                            {showTestUpload && (
-                                                <div className="flex flex-col w-full items-center">
-                                                    <Label className="text-sm font-semibold mb-1">Test Data</Label>
-                                                    <input
-                                                        type="file"
-                                                        id="testDataset"
-                                                        accept=".csv, .xlsx"
-                                                        ref={testInputRef}
-                                                        onChange={(e) => handleFileSelect(e, "Test")}
-                                                        hidden
-                                                    />
-                                                    <Button
-                                                        className="h-12 w-full flex justify-center items-center border-2 border-dashed border-gray-500 rounded-md 
-                hover:bg-gray-100 hover:text-black dark:hover:bg-gray-800 dark:hover:border-gray-300 transition"
-                                                        onClick={() => testInputRef.current?.click()}
-                                                    >
-                                                        {testFile ? (
-                                                            <span className="text-sm truncate w-full text-center">{testFile}</span>
-                                                        ) : (
-                                                            <span className="text-3xl">+</span>
-                                                        )}
-                                                    </Button>
-                                                </div>
-                                            )}
+                                            <div className="flex flex-col w-full items-center">
+
+
+                                                {showTestUpload ? (
+
+                                                    // Test File Selection
+                                                    <>
+                                                        <Label className="text-sm font-semibold mb-1">Test Data</Label>
+                                                        <input
+                                                            type="file"
+                                                            id="testDataset"
+                                                            accept=".csv, .xlsx"
+                                                            ref={testInputRef}
+                                                            onChange={(e) => handleFileSelect(e, "Test")}
+                                                            hidden
+                                                        />
+                                                        <Button
+                                                            className="h-12 w-full flex justify-center items-center border-2 border-dashed border-gray-500 rounded-md 
+                    hover:bg-gray-100 hover:text-black dark:hover:bg-gray-800 dark:hover:border-gray-300 transition"
+                                                            onClick={() => testInputRef.current?.click()}
+                                                        >
+                                                            {testFile ? (
+                                                                <span className="text-sm truncate w-full text-center">{testFile}</span>
+                                                            ) : (
+                                                                <span className="text-3xl">+</span>
+                                                            )}
+                                                        </Button>
+                                                    </>
+                                                ) : (
+                                                    // Test Set Split Ratio Input
+                                                    <div className="flex flex-col w-full items-center">
+                                                        <Label className="text-sm font-semibold mb-1">Test Set Split Ratio</Label>
+                                                        <Input
+                                                            type="text"
+                                                            value={testSplitRatio}
+                                                            onChange={handleTestSplitChange}
+                                                            onBlur={handleTestSplitBlur}
+                                                            placeholder="Ex: 0.2"
+                                                            className="w-full h-12 text-center dark:bg-[#0F0F0F] border border-gray-500 rounded-md"
+                                                        />
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
+
 
 
                                         {/* Toggle Link */}

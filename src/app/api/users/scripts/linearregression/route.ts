@@ -1,7 +1,6 @@
 import { NextRequest } from "next/server";
 import { spawn } from "child_process";
 import path from "path";
-import { URLSearchParams } from "url";
 
 export async function GET(req: NextRequest) {
     try {
@@ -11,6 +10,7 @@ export async function GET(req: NextRequest) {
         const { searchParams } = new URL(req.url);
         const train_csv_path = searchParams.get("train_csv_path");
         const test_csv_path = searchParams.get("test_csv_path");
+        const test_split_ratio = searchParams.get("test_split_ratio");
 
         if (!train_csv_path) {
             return new Response("Missing required parameter: train_csv_path", { status: 400 });
@@ -21,6 +21,8 @@ export async function GET(req: NextRequest) {
 
         if (test_csv_path && test_csv_path !== "None") {
             args.push("--test_csv_path", test_csv_path);
+        } else if (test_split_ratio) {
+            args.push("--test_split_ratio", test_split_ratio);
         }
 
         return new Response(
