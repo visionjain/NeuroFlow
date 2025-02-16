@@ -1,15 +1,32 @@
 import { NextRequest } from "next/server";
 import { spawn } from "child_process";
 import path from "path";
+import { URLSearchParams } from "url";
 
 export async function GET(req: NextRequest) {
     try {
         const scriptPath = path.join(process.cwd(), "Scripts", "linearreg.py");
 
+        // Extract query parameters
+        const { searchParams } = new URL(req.url);
+        const train_csv_path = searchParams.get("train_csv_path");
+        const test_csv_path = searchParams.get("test_csv_path");
+
+        if (!train_csv_path) {
+            return new Response("Missing required parameter: train_csv_path", { status: 400 });
+        }
+
+        // Prepare command arguments
+        const args = ["-u", scriptPath, "--train_csv_path", train_csv_path];
+
+        if (test_csv_path && test_csv_path !== "None") {
+            args.push("--test_csv_path", test_csv_path);
+        }
+
         return new Response(
             new ReadableStream({
                 start(controller) {
-                    const process = spawn("python", ["-u", scriptPath]); // Unbuffered mode
+                    const process = spawn("python", args);
 
                     process.stdout.setEncoding("utf8");
                     process.stderr.setEncoding("utf8");
@@ -26,21 +43,18 @@ export async function GET(req: NextRequest) {
                         }
                     };
 
-                    // Handle standard output
                     process.stdout.on("data", (data) => sendData(data.toString()));
-                    process.stderr.on("data", (data) => sendData(data.toString())); // No "ERROR:" prefix
+                    process.stderr.on("data", (data) => sendData(data.toString()));
 
-                    // Process exit handling
                     process.on("close", (code) => {
                         if (!isClosed) {
                             sendData(`Process exited with code ${code}`);
-                            sendData("END_OF_STREAM"); // Notify frontend that script has finished
+                            sendData("END_OF_STREAM");
                             controller.close();
                             isClosed = true;
                         }
                     });
 
-                    // Handle unexpected errors
                     process.on("error", (err) => {
                         if (!isClosed) {
                             sendData(`Error: ${err.message}`);
@@ -61,7 +75,6 @@ export async function GET(req: NextRequest) {
             }
         );
     } catch (error: unknown) {
-        // Send the error message via SSE format
         const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
         return new Response(`data: ${errorMessage}\n\n`, { status: 500 });
     }

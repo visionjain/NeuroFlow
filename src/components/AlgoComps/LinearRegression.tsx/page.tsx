@@ -18,13 +18,14 @@ interface LinearRegressionProps {
 const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectName, projectAlgo, projectTime }) => {
     const [trainFile, setTrainFile] = useState<string | null>(null);
     const [testFile, setTestFile] = useState<string | null>(null);
+    const [datasetPath, setDatasetPath] = useState<string>("");
     const [showTestUpload, setShowTestUpload] = useState(true);
     const trainInputRef = useRef<HTMLInputElement>(null);
     const testInputRef = useRef<HTMLInputElement>(null);
     const terminalRef = useRef<HTMLDivElement>(null);
     const [isRunning, setIsRunning] = useState<boolean>(false);
     const [logs, setLogs] = useState<string>("");
-    const [testSplitRatio, setTestSplitRatio] = useState<string>(""); // No default value
+    const [testSplitRatio, setTestSplitRatio] = useState<string>("");
 
 
     useEffect(() => {
@@ -53,13 +54,15 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
     const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>, type: string) => {
         const file = event.target.files?.[0];
         if (file) {
+            const fileName = file.name;
             if (type === "Train") {
-                setTrainFile(file.name);
+                setTrainFile(fileName);
             } else if (type === "Test") {
-                setTestFile(file.name);
+                setTestFile(fileName);
             }
         }
     };
+
 
     const toggleTestDataset = () => {
         setShowTestUpload((prev) => {
@@ -71,11 +74,40 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
         });
     };
 
+
+
     const handleRunScript = () => {
         setLogs(""); // Clear previous logs
         setIsRunning(true); // Disable button
 
-        const eventSource = new EventSource("/api/users/scripts/linearregression");
+        if (!datasetPath || !trainFile) {
+            alert("Dataset path and train file are required.");
+            setIsRunning(false);
+            return;
+        }
+
+        // Normalize datasetPath to avoid double backslashes
+        let normalizedPath = datasetPath.trim();
+        if (normalizedPath.endsWith("\\") || normalizedPath.endsWith("/")) {
+            normalizedPath = normalizedPath.slice(0, -1);
+        }
+
+        // Construct file paths correctly
+        const train_csv_path = normalizedPath.replace(/\\/g, "\\\\") + "\\\\" + trainFile;
+        const test_csv_path = testFile ? normalizedPath.replace(/\\/g, "\\\\") + "\\\\" + testFile : "None";
+
+        console.log("Train Path:", train_csv_path);
+        console.log("Test Path:", test_csv_path);
+
+        // Send paths as query parameters
+        const queryParams = new URLSearchParams({
+            train_csv_path,
+            test_csv_path,
+        }).toString();
+
+        const apiUrl = `/api/users/scripts/linearregression?${queryParams}`;
+
+        const eventSource = new EventSource(apiUrl);
 
         eventSource.onmessage = (event) => {
             if (event.data === "END_OF_STREAM") {
@@ -92,6 +124,9 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
             setIsRunning(false); // Re-enable button in case of an error
         };
     };
+
+
+
 
 
 
@@ -166,15 +201,18 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
                                             <Label className="text-sm font-semibold">Dataset Directory Path</Label>
                                             <Input
                                                 type="text"
-                                                placeholder="Ex: D:\datasets"
+                                                placeholder="Ex: D:\datasetpath"
                                                 className="mt-1 dark:bg-[#0F0F0F]"
+                                                value={datasetPath}
+                                                onChange={(e) => setDatasetPath(e.target.value)}
                                             />
+
                                         </div>
 
                                         {/* Train Data Selection & Dynamic Test Handling */}
-                                        <div className="flex justify-between mt-4">
-                                            {/* Train Data Selection */}
-                                            <div className="flex flex-col items-center">
+                                        <div className="flex w-full gap-2">
+                                            {/* Train Data Upload */}
+                                            <div className="flex flex-col w-full items-center">
                                                 <Label className="text-sm font-semibold mb-1">Train Data</Label>
                                                 <input
                                                     type="file"
@@ -185,8 +223,8 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
                                                     hidden
                                                 />
                                                 <Button
-                                                    className="w-52 h-12 flex justify-center items-center border-2 border-dashed border-gray-500 rounded-md 
-                hover:bg-gray-100 hover:text-black dark:text-black dark:hover:bg-gray-800 dark:hover:border-gray-300 transition"
+                                                    className="h-12 w-full flex justify-center items-center border-2 border-dashed border-gray-500 rounded-md 
+            hover:bg-gray-100 hover:text-black dark:hover:bg-gray-800 dark:hover:border-gray-300 transition"
                                                     onClick={() => trainInputRef.current?.click()}
                                                 >
                                                     {trainFile ? (
@@ -198,9 +236,8 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
                                             </div>
 
                                             {/* Conditional UI: Test File Upload OR Test Set Split Ratio */}
-                                            {showTestUpload ? (
-                                                // Show Test File Selection
-                                                <div className="flex flex-col items-center">
+                                            {showTestUpload && (
+                                                <div className="flex flex-col w-full items-center">
                                                     <Label className="text-sm font-semibold mb-1">Test Data</Label>
                                                     <input
                                                         type="file"
@@ -211,7 +248,7 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
                                                         hidden
                                                     />
                                                     <Button
-                                                        className="w-52 h-12 flex justify-center items-center border-2 border-dashed border-gray-500 rounded-md 
+                                                        className="h-12 w-full flex justify-center items-center border-2 border-dashed border-gray-500 rounded-md 
                 hover:bg-gray-100 hover:text-black dark:hover:bg-gray-800 dark:hover:border-gray-300 transition"
                                                         onClick={() => testInputRef.current?.click()}
                                                     >
@@ -222,20 +259,9 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
                                                         )}
                                                     </Button>
                                                 </div>
-                                            ) : (
-                                                // Show Test Set Split Ratio Input
-                                                <div className="flex flex-col items-center">
-                                                    <Label className="text-sm font-semibold mb-1">Test Set Split Ratio</Label>
-                                                    <Input
-                                                        type="text"
-                                                        value={testSplitRatio}
-                                                        onChange={handleTestSplitChange}
-                                                        placeholder="Ex: 0.2"
-                                                        className="w-52 h-12 text-center dark:bg-[#0F0F0F] border border-gray-500 rounded-md"
-                                                    />
-                                                </div>
                                             )}
                                         </div>
+
 
                                         {/* Toggle Link */}
                                         <p className="underline mt-2 flex justify-center text-sm text-blue-600 cursor-pointer" onClick={toggleTestDataset}>

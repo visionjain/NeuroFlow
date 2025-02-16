@@ -1,6 +1,7 @@
 import subprocess
 import sys
 import os
+import argparse
 import logging
 import pandas as pd
 import numpy as np
@@ -12,6 +13,15 @@ from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_squared_error, r2_score, accuracy_score
 import joblib
 
+# ====== Parse Command-Line Arguments ======
+parser = argparse.ArgumentParser(description="Run Linear Regression Model")
+parser.add_argument("--train_csv_path", required=True, help="Path to the training dataset CSV")
+parser.add_argument("--test_csv_path", required=False, help="Path to the test dataset CSV (optional)")
+args = parser.parse_args()
+
+train_csv_path = args.train_csv_path
+test_csv_path = args.test_csv_path if args.test_csv_path and args.test_csv_path.lower() != "none" else None
+
 # ====== Function to Create Log File in Output Directory ======
 def get_output_dir(csv_path):
     """Creates and returns an output directory based on the CSV filename."""
@@ -21,11 +31,7 @@ def get_output_dir(csv_path):
     os.makedirs(output_dir, exist_ok=True)
     return output_dir
 
-# ====== Set Paths for Datasets ======
-train_csv_path = "D:\\web projects\\NeuroFlow\\DataSets\\Diabetes Dataset\\archive\\diabetes.csv"
-test_csv_path = "D:\\web projects\\NeuroFlow\\DataSets\\Diabetes Dataset\\archive\\diabetes-test.csv"
-
-# ====== Initialize Logging to File and Console ======
+# ====== Initialize Logging ======
 output_dir = get_output_dir(train_csv_path)
 log_file = os.path.join(output_dir, "setup_log.txt")
 
@@ -33,7 +39,7 @@ logging.basicConfig(
     filename=log_file,
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
-    filemode="w",  # Reset log file on every execution
+    filemode="w",
 )
 
 console_handler = logging.StreamHandler()
@@ -43,9 +49,11 @@ console_handler.setFormatter(formatter)
 logging.getLogger().addHandler(console_handler)
 
 def log_and_print(message):
-    """Logs and prints the message to ensure full visibility."""
+    """Logs and prints the message."""
     logging.info(message)
+    print(message)
     sys.stdout.flush()
+
 
 log_and_print("========== SCRIPT STARTED ==========")
 
