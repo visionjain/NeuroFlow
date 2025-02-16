@@ -6,6 +6,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import axios from "axios";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 
 interface LinearRegressionProps {
     projectName: string;
@@ -22,12 +24,30 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
     const terminalRef = useRef<HTMLDivElement>(null);
     const [isRunning, setIsRunning] = useState<boolean>(false);
     const [logs, setLogs] = useState<string>("");
+    const [testSplitRatio, setTestSplitRatio] = useState<string>(""); // No default value
+
 
     useEffect(() => {
         if (terminalRef.current) {
             terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
         }
     }, [logs]);
+
+
+
+    const handleTestSplitChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+        let value = event.target.value;
+
+        // Ensure valid number format
+        if (/^\d*(\.\d{0,2})?$/.test(value)) {
+            // Convert to number and ensure it stays within range
+            let numValue = parseFloat(value);
+            if (!isNaN(numValue) && numValue >= 0.01 && numValue <= 0.99) {
+                setTestSplitRatio(value);
+            }
+        }
+    };
+
 
 
     const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>, type: string) => {
@@ -137,10 +157,25 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
                             <div className="border border-[rgb(61,68,77)] flex flex-col gap-3 dark:bg-[#0E0E0E] bg-[#E6E6E6] rounded-xl ml-4 mr-4 p-4">
                                 {/* First Row */}
                                 <div className="flex gap-x-3">
-                                    <div className="dark:bg-[#212628] h-52 rounded-xl w-1/3 bg-white">
-                                        <div className="flex justify-center items-center gap-8 mt-10">
+
+
+
+                                    <div className="dark:bg-[#212628] h-52 rounded-xl w-1/3 bg-white p-4">
+                                        {/* Dataset Directory Path Input */}
+                                        <div className="mb-4 text-center">
+                                            <Label className="text-sm font-semibold">Dataset Directory Path</Label>
+                                            <Input
+                                                type="text"
+                                                placeholder="Ex: D:\datasets"
+                                                className="mt-1 dark:bg-[#0F0F0F]"
+                                            />
+                                        </div>
+
+                                        {/* Train Data Selection & Dynamic Test Handling */}
+                                        <div className="flex justify-between mt-4">
                                             {/* Train Data Selection */}
                                             <div className="flex flex-col items-center">
+                                                <Label className="text-sm font-semibold mb-1">Train Data</Label>
                                                 <input
                                                     type="file"
                                                     id="trainDataset"
@@ -150,27 +185,23 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
                                                     hidden
                                                 />
                                                 <Button
-                                                    className="w-28 h-28 flex flex-col justify-center items-center border-2 border-dashed border-gray-500 rounded-lg 
-                        hover:bg-gray-100 hover:text-black dark:text-black dark:hover:bg-gray-800 dark:hover:border-gray-300 transition group"
+                                                    className="w-52 h-12 flex justify-center items-center border-2 border-dashed border-gray-500 rounded-md 
+                hover:bg-gray-100 hover:text-black dark:text-black dark:hover:bg-gray-800 dark:hover:border-gray-300 transition"
                                                     onClick={() => trainInputRef.current?.click()}
                                                 >
                                                     {trainFile ? (
-                                                        <>
-                                                            <span className="text-lg font-bold dark:text-black dark:group-hover:text-white">Train Data</span>
-                                                            <p className="text-[10px] text-gray-500 dark:text-grey-600 dark:group-hover:text-white mt-2">{trainFile}</p>
-                                                        </>
+                                                        <span className="text-sm truncate w-full text-center">{trainFile}</span>
                                                     ) : (
-                                                        <>
-                                                            <span className="text-4xl">+</span>
-                                                            <p className="text-sm mt-2">Select <br /> Train Data</p>
-                                                        </>
+                                                        <span className="text-3xl">+</span>
                                                     )}
                                                 </Button>
                                             </div>
 
-                                            {/* Test Data Selection */}
-                                            {showTestUpload && (
+                                            {/* Conditional UI: Test File Upload OR Test Set Split Ratio */}
+                                            {showTestUpload ? (
+                                                // Show Test File Selection
                                                 <div className="flex flex-col items-center">
+                                                    <Label className="text-sm font-semibold mb-1">Test Data</Label>
                                                     <input
                                                         type="file"
                                                         id="testDataset"
@@ -180,29 +211,40 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
                                                         hidden
                                                     />
                                                     <Button
-                                                        className="w-28 h-28 flex flex-col justify-center items-center border-2 border-dashed border-gray-500 rounded-lg 
-                                               hover:bg-gray-100 hover:text-black dark:hover:bg-gray-800 dark:hover:border-gray-300 transition group"
+                                                        className="w-52 h-12 flex justify-center items-center border-2 border-dashed border-gray-500 rounded-md 
+                hover:bg-gray-100 hover:text-black dark:hover:bg-gray-800 dark:hover:border-gray-300 transition"
                                                         onClick={() => testInputRef.current?.click()}
                                                     >
                                                         {testFile ? (
-                                                            <>
-                                                                <span className="text-lg font-bold dark:text-black dark:group-hover:text-white">Test Data</span>
-                                                                <p className="text-[10px] text-gray-500 dark:text-grey-600 dark:group-hover:text-white mt-2">{testFile}</p>
-                                                            </>
+                                                            <span className="text-sm truncate w-full text-center">{testFile}</span>
                                                         ) : (
-                                                            <>
-                                                                <span className="text-4xl">+</span>
-                                                                <p className="text-sm mt-2">Select <br /> Test Data</p>
-                                                            </>
+                                                            <span className="text-3xl">+</span>
                                                         )}
                                                     </Button>
                                                 </div>
+                                            ) : (
+                                                // Show Test Set Split Ratio Input
+                                                <div className="flex flex-col items-center">
+                                                    <Label className="text-sm font-semibold mb-1">Test Set Split Ratio</Label>
+                                                    <Input
+                                                        type="text"
+                                                        value={testSplitRatio}
+                                                        onChange={handleTestSplitChange}
+                                                        placeholder="Ex: 0.2"
+                                                        className="w-52 h-12 text-center dark:bg-[#0F0F0F] border border-gray-500 rounded-md"
+                                                    />
+                                                </div>
                                             )}
                                         </div>
+
+                                        {/* Toggle Link */}
                                         <p className="underline mt-2 flex justify-center text-sm text-blue-600 cursor-pointer" onClick={toggleTestDataset}>
                                             {showTestUpload ? "Don't have a test dataset?" : "Have a test dataset?"}
                                         </p>
                                     </div>
+
+
+
                                     <div className="dark:bg-[#212628] h-52 rounded-xl w-1/3 bg-white">
                                         <div>Select Train Column</div>
                                         <div>
