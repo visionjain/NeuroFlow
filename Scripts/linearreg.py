@@ -19,6 +19,7 @@ import joblib
 parser = argparse.ArgumentParser(description="Run Linear Regression Model")
 parser.add_argument("--train_csv_path", required=True, help="Path to the training dataset CSV")
 parser.add_argument("--test_csv_path", required=False, help="Path to the test dataset CSV (optional)")
+parser.add_argument("--test_split_ratio", type=float, help="Test split ratio if test dataset is not provided")
 args = parser.parse_args()
 
 train_csv_path = args.train_csv_path
@@ -157,6 +158,8 @@ plt.savefig(histogram_path)
 plt.close()
 log_and_print(f"Outcome distribution histogram saved to {histogram_path}")
 
+
+
 # ====== Prepare Features and Target ======
 X_train = df_train.drop(columns=["Outcome"])
 y_train = df_train["Outcome"]
@@ -169,9 +172,13 @@ if df_test is not None:
     y_test = df_test["Outcome"]
     X_test_scaled = scaler.transform(X_test)
 else:
-    X_train_scaled, X_test_scaled, y_train, y_test = train_test_split(X_train_scaled, y_train, test_size=0.2, random_state=42)
+    # Use user-provided test split ratio or default to 0.2
+    test_size = args.test_split_ratio if args.test_split_ratio else 0.2
+    X_train_scaled, X_test_scaled, y_train, y_test = train_test_split(X_train_scaled, y_train, test_size=test_size, random_state=42)
 
 log_and_print("Data Pre-processing Completed.")
+
+
 
 # ====== Train Model ======
 model = LinearRegression()
