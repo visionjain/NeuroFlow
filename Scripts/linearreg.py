@@ -1,5 +1,6 @@
 import subprocess
 import sys
+import ast
 import os
 import argparse
 import logging
@@ -20,11 +21,15 @@ parser = argparse.ArgumentParser(description="Run Linear Regression Model")
 parser.add_argument("--train_csv_path", required=True, help="Path to the training dataset CSV")
 parser.add_argument("--test_csv_path", required=False, help="Path to the test dataset CSV (optional)")
 parser.add_argument("--test_split_ratio", type=float, help="Test split ratio if test dataset is not provided")
+parser.add_argument("--train_columns", required=True, help="Comma-separated column names for training features")
+parser.add_argument("--output_column", required=True, help="Name of the target output column")
+
 args = parser.parse_args()
 
 train_csv_path = args.train_csv_path
 test_csv_path = args.test_csv_path if args.test_csv_path and args.test_csv_path.lower() != "none" else None
-
+train_columns = args.train_columns.split(",")  # Convert comma-separated string to list
+output_column = args.output_column
 
 
 # ====== Function to Create Log File in Output Directory ======
@@ -61,7 +66,7 @@ def log_and_print(message):
     sys.stdout.flush()
 
 
-log_and_print("========== SCRIPT STARTED ==========")
+log_and_print("========== STARTED ==========")
 
 # ====== Function to Run Commands and Capture Logs ======
 def run_command(command):
@@ -140,6 +145,18 @@ df_train = df_train[(z_scores < 3).all(axis=1)]
 logging.info("Data cleaning completed.")
 print("\nData Cleaning & Exploration Done. Check logs for details.")
 
+
+# Ensure train_columns is a proper list (especially if passed as a string)
+try:
+    train_columns = ast.literal_eval(args.train_columns)
+    if not isinstance(train_columns, list):
+        raise ValueError("train_columns should be a list.")
+except Exception as e:
+    log_and_print(f"Error parsing train_columns: {e}")
+    sys.exit(1)
+
+
+
 # ====== Save Feature Correlation Heatmap ======
 heatmap_path = os.path.join(output_dir, "heatmap.png")
 plt.figure(figsize=(10, 6))
@@ -149,34 +166,42 @@ plt.savefig(heatmap_path)
 plt.close()
 log_and_print(f"Feature correlation heatmap saved to {heatmap_path}")
 
-# ====== Save Histogram of Outcome Distribution ======
+# ====== Save Histogram of Output Distribution ======
 histogram_path = os.path.join(output_dir, "Histogram_distribution.png")
 plt.figure(figsize=(8, 5))
-sns.histplot(df_train['Outcome'], bins=3, kde=True)
-plt.title("Distribution of Diabetes Outcome")
+sns.histplot(df_train[output_column], bins=3, kde=True)  # <-- Updated to use output_column
+plt.title("Distribution of Output")
 plt.savefig(histogram_path)
 plt.close()
-log_and_print(f"Outcome distribution histogram saved to {histogram_path}")
-
+log_and_print(f"Output distribution histogram saved to {histogram_path}")
 
 
 # ====== Prepare Features and Target ======
-X_train = df_train.drop(columns=["Outcome"])
-y_train = df_train["Outcome"]
+X_train = df_train[train_columns]  # Use selected training columns
+y_train = df_train[output_column]  # Use selected output column
+train_columns = [col.strip().replace('"', '').replace("'", '') for col in train_columns]
+log_and_print(f"train_columns: {train_columns}")
+log_and_print(f"Available columns in dataset: {df_train.columns.tolist()}")
+
 
 scaler = StandardScaler()
 X_train_scaled = scaler.fit_transform(X_train)
 
 if df_test is not None:
-    X_test = df_test.drop(columns=["Outcome"])
-    y_test = df_test["Outcome"]
+    missing_test_columns = [col for col in train_columns + [output_column] if col not in df_test.columns]
+    if missing_test_columns:
+        log_and_print(f"Error: The following columns are missing in the test dataset: {missing_test_columns}")
+        sys.exit(1)
+    
+    X_test = df_test[train_columns]
+    y_test = df_test[output_column]
     X_test_scaled = scaler.transform(X_test)
 else:
-    # Use user-provided test split ratio or default to 0.2
     test_size = args.test_split_ratio if args.test_split_ratio else 0.2
     X_train_scaled, X_test_scaled, y_train, y_test = train_test_split(X_train_scaled, y_train, test_size=test_size, random_state=42)
 
 log_and_print("Data Pre-processing Completed.")
+
 
 
 
@@ -211,4 +236,4 @@ with open(path_file, "w") as f:
     f.write(f"CSV Path: {train_csv_path}\n")
 
 log_and_print(f"Saved paths in '{path_file}'")
-log_and_print("========== SCRIPT FINISHED SUCCESSFULLY ==========")
+log_and_print("========== FINISHED SUCCESSFULLY ==========")

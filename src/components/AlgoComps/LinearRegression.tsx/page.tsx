@@ -26,6 +26,10 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
     const [isRunning, setIsRunning] = useState<boolean>(false);
     const [logs, setLogs] = useState<string>("");
     const [testSplitRatio, setTestSplitRatio] = useState<string>("");
+    const [trainColumns, setTrainColumns] = useState<string[]>([]);
+    const [selectedTrainColumns, setSelectedTrainColumns] = useState<string[]>([]);
+    const [selectedOutputColumn, setSelectedOutputColumn] = useState<string | null>(null);
+
 
 
 
@@ -57,8 +61,21 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
         const file = event.target.files?.[0];
         if (file) {
             const fileName = file.name;
+
             if (type === "Train") {
                 setTrainFile(fileName);
+
+                // Read the first line of the CSV to get column names
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const result = e.target?.result as string;
+                    if (result) {
+                        const firstLine = result.split("\n")[0];
+                        const columns = firstLine.split(",").map(col => col.trim()); // Handle spaces
+                        setTrainColumns(columns);
+                    }
+                };
+                reader.readAsText(file);
             } else if (type === "Test") {
                 setTestFile(fileName);
             }
@@ -66,15 +83,43 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
     };
 
 
+    const toggleTrainColumn = (column: string) => {
+        setSelectedTrainColumns(prev =>
+            prev.includes(column) ? prev.filter(col => col !== column) : [...prev, column]
+        );
+    };
+
+    const handleOutputColumnSelect = (column: string) => {
+        setSelectedOutputColumn(column);
+    };
+
+
+
+
+
+
     const toggleTestDataset = () => {
         setShowTestUpload((prev) => {
+            // Always clear the columns when the toggle is clicked
+            setTrainColumns([]); // Clear the train columns
+            setSelectedTrainColumns([]); // Reset the selected train columns
+            setSelectedOutputColumn(null); // Reset the output column
+    
+            // Reset the file selections
             setTrainFile(null);
             setTestFile(null);
+    
+            // Reset the input fields for file selection
             if (trainInputRef.current) trainInputRef.current.value = "";
             if (testInputRef.current) testInputRef.current.value = "";
+    
             return !prev;
         });
     };
+    
+    
+    
+    
 
 
 
@@ -88,6 +133,18 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
             return;
         }
     
+        if (selectedTrainColumns.length === 0) {
+            alert("Please select at least one train column.");
+            setIsRunning(false);
+            return;
+        }
+    
+        if (!selectedOutputColumn) {
+            alert("Please select an output column.");
+            setIsRunning(false);
+            return;
+        }
+    
         // Normalize datasetPath to avoid double backslashes
         let normalizedPath = datasetPath.trim();
         if (normalizedPath.endsWith("\\") || normalizedPath.endsWith("/")) {
@@ -95,13 +152,15 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
         }
     
         // Construct file paths correctly
-        const train_csv_path = normalizedPath.replace(/\\/g, "\\\\") + "\\\\" + trainFile;
-        const test_csv_path = testFile ? normalizedPath.replace(/\\/g, "\\\\") + "\\\\" + testFile : "None";
+        const train_csv_path = `${normalizedPath.replace(/\\/g, "\\\\")}\\\\${trainFile}`;
+        const test_csv_path = testFile ? `${normalizedPath.replace(/\\/g, "\\\\")}\\\\${testFile}` : "None";
     
         // Prepare API query params
         const queryParams = new URLSearchParams({
             train_csv_path,
             test_csv_path,
+            train_columns: JSON.stringify(selectedTrainColumns), // Pass selected train columns
+            output_column: selectedOutputColumn, // Pass output column
         });
     
         // If no test file is uploaded, send test split ratio
@@ -129,6 +188,7 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
         };
     };
     
+
 
 
 
@@ -295,19 +355,41 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
                                     </div>
 
 
+                                    <div className="dark:bg-[#212628] h-52 rounded-xl w-1/3 bg-white p-2">
+                                        <div className="font-semibold text-sm mb-1 mt-1">Select Train Columns</div>
+                                        <div className="dark:bg-[#0E0E0E] bg-[#E6E6E6] h-40 p-3 rounded-xl  overflow-auto">
+                                            <div className="grid grid-cols-2 gap-1">
+                                                {trainColumns.map((col, index) => (
+                                                    <div key={index} className="flex items-center text-xs">
+                                                        <Checkbox
+                                                            checked={selectedTrainColumns.includes(col)}
+                                                            onCheckedChange={() => toggleTrainColumn(col)}
+                                                        />
+                                                        <span className="ml-1">{col}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
 
-                                    <div className="dark:bg-[#212628] h-52 rounded-xl w-1/3 bg-white">
-                                        <div>Select Train Column</div>
-                                        <div>
-                                            <Checkbox /> Column Names
+                                    <div className="dark:bg-[#212628] h-52 rounded-xl w-1/3 bg-white p-2">
+                                        <div className="font-semibold text-sm mb-1 mt-1">Select Output Column</div>
+                                        <div className="dark:bg-[#0E0E0E] bg-[#E6E6E6] h-40 p-3 rounded-xl overflow-auto">
+                                            <div className="grid grid-cols-2 gap-1">
+                                                {trainColumns.map((col, index) => (
+                                                    <div key={index} className="flex items-center text-xs">
+                                                        <Checkbox
+                                                            checked={selectedOutputColumn === col}
+                                                            onCheckedChange={() => handleOutputColumnSelect(col)}
+                                                        />
+                                                        <span className="ml-1">{col}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
                                         </div>
                                     </div>
-                                    <div className="dark:bg-[#212628] h-52 rounded-xl w-1/3 bg-white">
-                                        <div>Select Test Column</div>
-                                        <div>
-                                            <Checkbox /> Column Names
-                                        </div>
-                                    </div>
+
+
                                 </div>
 
                                 {/* Second Row */}
