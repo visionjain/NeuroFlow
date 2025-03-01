@@ -127,84 +127,84 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
         setLogs(""); // Clear previous logs
         setResults(""); // Clear previous results
         setIsRunning(true); // Disable button
-    
+
         if (!datasetPath || !trainFile) {
-          alert("Dataset path and train file are required.");
-          setIsRunning(false);
-          return;
+            alert("Dataset path and train file are required.");
+            setIsRunning(false);
+            return;
         }
-    
+
         if (selectedTrainColumns.length === 0) {
-          alert("Please select at least one train column.");
-          setIsRunning(false);
-          return;
+            alert("Please select at least one train column.");
+            setIsRunning(false);
+            return;
         }
-    
+
         if (!selectedOutputColumn) {
-          alert("Please select an output column.");
-          setIsRunning(false);
-          return;
+            alert("Please select an output column.");
+            setIsRunning(false);
+            return;
         }
-    
+
         // Normalize datasetPath to remove trailing slashes
         let normalizedPath = datasetPath.trim();
         if (normalizedPath.endsWith("\\") || normalizedPath.endsWith("/")) {
-          normalizedPath = normalizedPath.slice(0, -1);
+            normalizedPath = normalizedPath.slice(0, -1);
         }
-    
+
         // Detect OS to use appropriate separator (this example assumes Windows or Unix-like)
         const isWindows = navigator.platform.startsWith("Win");
         const separator = isWindows ? "\\\\" : "/";
-    
+
         // Construct file paths
         const train_csv_path = `${normalizedPath}${separator}${trainFile}`;
         const test_csv_path = testFile ? `${normalizedPath}${separator}${testFile}` : "None";
-    
+
         // Prepare API query parameters
         const queryParams = new URLSearchParams({
-          train_csv_path,
-          test_csv_path,
-          train_columns: JSON.stringify(selectedTrainColumns),
-          output_column: selectedOutputColumn,
+            train_csv_path,
+            test_csv_path,
+            train_columns: JSON.stringify(selectedTrainColumns),
+            output_column: selectedOutputColumn,
         });
-    
+
         if (!testFile && testSplitRatio) {
-          queryParams.append("test_split_ratio", testSplitRatio);
+            queryParams.append("test_split_ratio", testSplitRatio);
         }
-    
+
         const apiUrl = `/api/users/scripts/linearregression?${queryParams.toString()}`;
-    
+
         // Local variable to accumulate all output lines
         let allLogs = "";
         const eventSource = new EventSource(apiUrl);
-    
+
         eventSource.onmessage = (event) => {
-          if (event.data === "END_OF_STREAM") {
-            // Once stream ends, parse accumulated logs for results lines
-            const resultLines = allLogs
-              .split("\n")
-              .filter(
-                (line) =>
-                  line.startsWith("Mean Squared Error:") ||
-                  line.startsWith("R-squared Score:") ||
-                  line.startsWith("Accuracy Score:") ||
-                  line.includes("Skipping accuracy")
-              );
-            setResults(resultLines.join("\n"));
+            if (event.data === "END_OF_STREAM") {
+                // Once stream ends, parse accumulated logs for results lines
+                const resultLines = allLogs
+                    .split("\n")
+                    .filter(
+                        (line) =>
+                            line.startsWith("Mean Squared Error:") ||
+                            line.startsWith("R-squared Score:") ||
+                            line.startsWith("Accuracy Score:") ||
+                            line.includes("Skipping accuracy")
+                    );
+                setResults(resultLines.join("\n"));
+                eventSource.close();
+                setIsRunning(false);
+            } else {
+                allLogs += event.data + "\n";
+                setLogs((prev) => prev + event.data + "\n");
+            }
+        };
+
+        eventSource.onerror = (error) => {
+            console.error("EventSource failed:", error);
             eventSource.close();
             setIsRunning(false);
-          } else {
-            allLogs += event.data + "\n";
-            setLogs((prev) => prev + event.data + "\n");
-          }
         };
-    
-        eventSource.onerror = (error) => {
-          console.error("EventSource failed:", error);
-          eventSource.close();
-          setIsRunning(false);
-        };
-      };
+    };
 
 
 
@@ -444,20 +444,33 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
                             </div>
                         </TabsContent>
                         <TabsContent value="graphs">
-                            <div className="border border-[rgb(61,68,77)] h-[700px] dark:bg-[#0E0E0E] bg-[#E6E6E6] rounded-xl ml-4 mr-4 text-sm p-4 overflow-y-auto">
-                                Graphs are saved in this Directory:{" "}
-                                <span className="font-semibold">
+                            <div className="flex flex-col items-center justify-center h-[700px] dark:bg-[#0E0E0E] bg-[#E6E6E6] rounded-xl ml-4 mr-4 text-center p-8 space-y-8">
+                                <h2 className="text-5xl font-bold">Graphs will be saved in this Directory</h2>
+                                <p className="text-3xl font-semibold">
                                     {datasetPath
-                                        ? `${datasetPath}/${"linearregression-" + (trainFile ? trainFile.split(".")[0] : "")}`
+                                        ? `${datasetPath.replace(/[/\\]+$/, "")}/linearregression-${trainFile ? trainFile.split(".")[0] : "N/A"}`
                                         : "N/A"}
-                                </span>
+                                </p>
                             </div>
                         </TabsContent>
+
                         <TabsContent value="result">
-                            <div className="border border-[rgb(61,68,77)] h-[700px] dark:bg-[#0E0E0E] bg-[#E6E6E6] rounded-xl ml-4 mr-4 text-sm p-4 overflow-y-auto">
-                                <pre className="whitespace-pre-wrap">{results || "Results will be displayed here."}</pre>
+                            <div className="flex flex-col items-center justify-center h-[700px] dark:bg-[#0E0E0E] bg-[#E6E6E6] rounded-xl ml-4 mr-4 text-center p-4">
+                                {results ? (
+                                    results
+                                        .split("\n")
+                                        .filter((line) => line.trim() !== "")
+                                        .map((line, index) => (
+                                            <div key={index} className="text-5xl font-bold mb-4">
+                                                {line}
+                                            </div>
+                                        ))
+                                ) : (
+                                    <div className="text-4xl font-bold">Results will be displayed here.</div>
+                                )}
                             </div>
                         </TabsContent>
+
 
                     </div>
                 </Tabs>
