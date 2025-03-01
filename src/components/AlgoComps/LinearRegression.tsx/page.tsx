@@ -29,7 +29,7 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
     const [trainColumns, setTrainColumns] = useState<string[]>([]);
     const [selectedTrainColumns, setSelectedTrainColumns] = useState<string[]>([]);
     const [selectedOutputColumn, setSelectedOutputColumn] = useState<string | null>(null);
-
+    const [results, setResults] = useState<string>("");
 
 
 
@@ -104,90 +104,118 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
             setTrainColumns([]); // Clear the train columns
             setSelectedTrainColumns([]); // Reset the selected train columns
             setSelectedOutputColumn(null); // Reset the output column
-    
+
             // Reset the file selections
             setTrainFile(null);
             setTestFile(null);
-    
+
             // Reset the input fields for file selection
             if (trainInputRef.current) trainInputRef.current.value = "";
             if (testInputRef.current) testInputRef.current.value = "";
-    
+
             return !prev;
         });
     };
-    
-    
-    
-    
+
+
+
+
 
 
 
     const handleRunScript = () => {
         setLogs(""); // Clear previous logs
+        setResults(""); // Clear previous results
         setIsRunning(true); // Disable button
     
         if (!datasetPath || !trainFile) {
-            alert("Dataset path and train file are required.");
-            setIsRunning(false);
-            return;
+          alert("Dataset path and train file are required.");
+          setIsRunning(false);
+          return;
         }
     
         if (selectedTrainColumns.length === 0) {
-            alert("Please select at least one train column.");
-            setIsRunning(false);
-            return;
+          alert("Please select at least one train column.");
+          setIsRunning(false);
+          return;
         }
     
         if (!selectedOutputColumn) {
-            alert("Please select an output column.");
-            setIsRunning(false);
-            return;
+          alert("Please select an output column.");
+          setIsRunning(false);
+          return;
         }
     
-        // Normalize datasetPath to avoid double backslashes
+        // Normalize datasetPath to remove trailing slashes
         let normalizedPath = datasetPath.trim();
         if (normalizedPath.endsWith("\\") || normalizedPath.endsWith("/")) {
-            normalizedPath = normalizedPath.slice(0, -1);
+          normalizedPath = normalizedPath.slice(0, -1);
         }
     
-        // Construct file paths correctly
-        const train_csv_path = `${normalizedPath.replace(/\\/g, "\\\\")}\\\\${trainFile}`;
-        const test_csv_path = testFile ? `${normalizedPath.replace(/\\/g, "\\\\")}\\\\${testFile}` : "None";
+        // Detect OS to use appropriate separator (this example assumes Windows or Unix-like)
+        const isWindows = navigator.platform.startsWith("Win");
+        const separator = isWindows ? "\\\\" : "/";
     
-        // Prepare API query params
+        // Construct file paths
+        const train_csv_path = `${normalizedPath}${separator}${trainFile}`;
+        const test_csv_path = testFile ? `${normalizedPath}${separator}${testFile}` : "None";
+    
+        // Prepare API query parameters
         const queryParams = new URLSearchParams({
-            train_csv_path,
-            test_csv_path,
-            train_columns: JSON.stringify(selectedTrainColumns), // Pass selected train columns
-            output_column: selectedOutputColumn, // Pass output column
+          train_csv_path,
+          test_csv_path,
+          train_columns: JSON.stringify(selectedTrainColumns),
+          output_column: selectedOutputColumn,
         });
     
-        // If no test file is uploaded, send test split ratio
         if (!testFile && testSplitRatio) {
-            queryParams.append("test_split_ratio", testSplitRatio);
+          queryParams.append("test_split_ratio", testSplitRatio);
         }
     
         const apiUrl = `/api/users/scripts/linearregression?${queryParams.toString()}`;
     
+        // Local variable to accumulate all output lines
+        let allLogs = "";
         const eventSource = new EventSource(apiUrl);
     
         eventSource.onmessage = (event) => {
-            if (event.data === "END_OF_STREAM") {
-                eventSource.close();
-                setIsRunning(false); // Re-enable button when script ends
-            } else {
-                setLogs((prevLogs) => prevLogs + event.data + "\n");
-            }
+          if (event.data === "END_OF_STREAM") {
+            // Once stream ends, parse accumulated logs for results lines
+            const resultLines = allLogs
+              .split("\n")
+              .filter(
+                (line) =>
+                  line.startsWith("Mean Squared Error:") ||
+                  line.startsWith("R-squared Score:") ||
+                  line.startsWith("Accuracy Score:") ||
+                  line.includes("Skipping accuracy")
+              );
+            setResults(resultLines.join("\n"));
+            eventSource.close();
+            setIsRunning(false);
+          } else {
+            allLogs += event.data + "\n";
+            setLogs((prev) => prev + event.data + "\n");
+          }
         };
     
         eventSource.onerror = (error) => {
-            console.error("EventSource failed:", error);
-            eventSource.close();
-            setIsRunning(false); // Re-enable button in case of an error
+          console.error("EventSource failed:", error);
+          eventSource.close();
+          setIsRunning(false);
         };
+      };
+
+
+
+    const toggleSelectAll = () => {
+        if (selectedTrainColumns.length === trainColumns.length) {
+            setSelectedTrainColumns([]); // deselect all
+        } else {
+            setSelectedTrainColumns([...trainColumns]); // select all
+        }
     };
-    
+
 
 
 
@@ -223,12 +251,6 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
                                 value="graphs"
                             >
                                 Graphs
-                            </TabsTrigger>
-                            <TabsTrigger
-                                className="w-[30%] border border-transparent data-[state=active]:border-[rgb(61,68,77)] data-[state=active]:rounded-md data-[state=active]:bg-[#212628]"
-                                value="analysis"
-                            >
-                                Analysis
                             </TabsTrigger>
                             <TabsTrigger
                                 className="w-[30%] border border-transparent data-[state=active]:border-[rgb(61,68,77)] data-[state=active]:rounded-md data-[state=active]:bg-[#212628]"
@@ -356,8 +378,17 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
 
 
                                     <div className="dark:bg-[#212628] h-52 rounded-xl w-1/3 bg-white p-2">
-                                        <div className="font-semibold text-sm mb-1 mt-1">Select Train Columns</div>
-                                        <div className="dark:bg-[#0E0E0E] bg-[#E6E6E6] h-40 p-3 rounded-xl  overflow-auto">
+                                        <div className="flex items-center justify-between mb-1 mt-1">
+                                            <div className="font-semibold text-sm">Select Train Columns</div>
+                                            <div className="flex items-center">
+                                                <Checkbox
+                                                    checked={selectedTrainColumns.length === trainColumns.length}
+                                                    onCheckedChange={() => toggleSelectAll()}
+                                                />
+                                                <span className="ml-1 text-xs">Select All</span>
+                                            </div>
+                                        </div>
+                                        <div className="dark:bg-[#0E0E0E] bg-[#E6E6E6] h-40 p-3 rounded-xl overflow-auto">
                                             <div className="grid grid-cols-2 gap-1">
                                                 {trainColumns.map((col, index) => (
                                                     <div key={index} className="flex items-center text-xs">
@@ -371,6 +402,7 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
                                             </div>
                                         </div>
                                     </div>
+
 
                                     <div className="dark:bg-[#212628] h-52 rounded-xl w-1/3 bg-white p-2">
                                         <div className="font-semibold text-sm mb-1 mt-1">Select Output Column</div>
@@ -406,11 +438,27 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
                         <TabsContent value="terminal">
                             <div
                                 ref={terminalRef}
-                                className="border border-[rgb(61,68,77)] h-[505px] dark:bg-[#0E0E0E] bg-[#E6E6E6] rounded-xl ml-4 mr-4 text-sm p-4 overflow-y-auto"
+                                className="border border-[rgb(61,68,77)] h-[700px] dark:bg-[#0E0E0E] bg-[#E6E6E6] rounded-xl ml-4 mr-4 text-sm p-4 overflow-y-auto"
                             >
                                 <pre className="whitespace-pre-wrap">{logs || "Terminal Output will be shown here."}</pre>
                             </div>
                         </TabsContent>
+                        <TabsContent value="graphs">
+                            <div className="border border-[rgb(61,68,77)] h-[700px] dark:bg-[#0E0E0E] bg-[#E6E6E6] rounded-xl ml-4 mr-4 text-sm p-4 overflow-y-auto">
+                                Graphs are saved in this Directory:{" "}
+                                <span className="font-semibold">
+                                    {datasetPath
+                                        ? `${datasetPath}/${"linearregression-" + (trainFile ? trainFile.split(".")[0] : "")}`
+                                        : "N/A"}
+                                </span>
+                            </div>
+                        </TabsContent>
+                        <TabsContent value="result">
+                            <div className="border border-[rgb(61,68,77)] h-[700px] dark:bg-[#0E0E0E] bg-[#E6E6E6] rounded-xl ml-4 mr-4 text-sm p-4 overflow-y-auto">
+                                <pre className="whitespace-pre-wrap">{results || "Results will be displayed here."}</pre>
+                            </div>
+                        </TabsContent>
+
                     </div>
                 </Tabs>
             </div>
