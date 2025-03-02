@@ -59,7 +59,7 @@ def install_package(package):
         log_and_print(f"Failed to install {package}: {e}")
         sys.exit(1)
 
-packages = ["pandas", "numpy", "matplotlib", "seaborn", "scikit-learn", "joblib", "six", "scipy"]
+packages = ["pandas", "category_encoders", "numpy", "matplotlib", "seaborn", "scikit-learn", "joblib", "six", "scipy"]
 for package in packages:
     try:
         __import__(package)
@@ -74,6 +74,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_squared_error, r2_score, accuracy_score
+from category_encoders import TargetEncoder
 import joblib
 from scipy import stats
 
@@ -95,6 +96,7 @@ parser.add_argument("--output_column", required=True, help="Name of the target o
 parser.add_argument("--selected_graphs", required=False, help="Comma-separated list of graph filenames to generate (optional)")
 parser.add_argument("--selected_missingval_tech", required=True, help="Selected missing value handling technique")
 parser.add_argument("--remove_duplicates", action="store_true", help="Remove duplicate rows from the dataset")
+parser.add_argument("--encoding_type", required=True, choices=["one-hot", "label", "target"], help="Encoding type for categorical variables")
 
 # Outlier Handling Arguments
 parser.add_argument("--enable_outlier_detection", type=str, help="Enable outlier detection (true/false)", default="false")
@@ -259,7 +261,7 @@ if args.remove_duplicates:
     after_rows = df_train.shape[0]
     logging.info(f"Removed {before_rows - after_rows} duplicate rows from the training dataset.")
 
-# ========== outlier removal ==========
+# ========== Outlier Removal ==========
 if args.enable_outlier_detection.lower() == "true":
     numeric_cols = df_train.select_dtypes(include=[np.number]).columns
     logging.info(f"🛠️ Outlier removal enabled using method: {args.outlier_method}")
@@ -300,12 +302,41 @@ if args.enable_outlier_detection.lower() == "true":
 else:
     logging.info("⚠️ Outlier removal is disabled. Skipping outlier detection.")
 
-
-
-# ========== Convert Categorical Columns to Dummy Variables ==========
+# ========== Convert Categorical Columns Based on Encoding Method ==========
 feature_cols = [col for col in df_train.columns if col != output_column]
-df_train = pd.get_dummies(df_train, columns=[col for col in feature_cols if df_train[col].dtype == 'object'], drop_first=True)
-logging.info("Categorical columns converted to dummy variables (one-hot encoding).")
+categorical_cols = [col for col in feature_cols if df_train[col].dtype == 'object']
+
+if args.encoding_type.lower() == "one-hot":
+    # One-Hot Encoding
+    df_train = pd.get_dummies(df_train, columns=categorical_cols, drop_first=True)
+    logging.info("Categorical columns converted using One-Hot Encoding.")
+
+elif args.encoding_type.lower() == "label":
+    # Label Encoding
+    from sklearn.preprocessing import LabelEncoder  # Ensure LabelEncoder is imported
+
+    label_encoders = {}
+    for col in categorical_cols:
+        le = LabelEncoder()
+        df_train[col] = le.fit_transform(df_train[col])
+        label_encoders[col] = le  # Store encoders if needed later
+    logging.info("Categorical columns converted using Label Encoding.")
+
+
+elif args.encoding_type.lower() == "target":
+    # Target Encoding
+    from collections import defaultdict
+    target_means = defaultdict(float)
+    
+    for col in categorical_cols:
+        target_means[col] = df_train.groupby(col)[output_column].mean()
+        df_train[col] = df_train[col].map(target_means[col])
+    
+    logging.info("Categorical columns converted using Target Encoding.")
+
+else:
+    logging.error(f"Invalid encoding method: {args.encoding_type}. Supported: 'one-hot', 'label', 'target'")
+    sys.exit(1)
 
 logging.info("Training Data Cleaning Completed.")
 print("\nData Cleaning & Exploration Done. Check logs for details.")
@@ -380,16 +411,16 @@ X_train_scaled = scaler.fit_transform(X_train)
 # ====== If There's a Test Dataset ======
 if df_test_original is not None:
     logging.info("Starting data cleaning for test dataset...")
-    
+
     # Strip whitespace from test dataset column names
     df_test_original.columns = df_test_original.columns.str.strip()
-    
+
     # Check that required columns exist in the test data
     missing_in_test = [col for col in all_needed_columns if col not in df_test_original.columns]
     if missing_in_test:
         logging.error(f"Error: The following columns are missing in the test dataset: {missing_in_test}")
         sys.exit(1)
-    
+
     # Subset to same columns as training
     df_test = df_test_original[all_needed_columns].copy()
 
@@ -474,10 +505,38 @@ if df_test_original is not None:
     else:
         logging.info("⚠️ Outlier removal is disabled for test set. Skipping outlier detection.")
 
-    # ========== Convert Categorical Columns to Dummy Variables ==========
-    test_feature_cols = [col for col in df_test.columns if col != output_column]
-    df_test = pd.get_dummies(df_test, columns=[col for col in test_feature_cols if df_test[col].dtype == 'object'], drop_first=True)
-    logging.info("Test Set: Categorical columns converted to dummy variables (one-hot encoding).")
+    # ========== Encoding Categorical Columns ==========
+    logging.info("Applying categorical encoding for test dataset...")
+
+    if args.encoding_type.lower() == "one-hot":
+        test_feature_cols = [col for col in df_test.columns if col != output_column]
+        df_test = pd.get_dummies(df_test, columns=[col for col in test_feature_cols if df_test[col].dtype == 'object'], drop_first=True)
+        logging.info("Test Set: Categorical columns converted to dummy variables (one-hot encoding).")
+
+    elif args.encoding_type.lower() == "label":
+        from sklearn.preprocessing import LabelEncoder
+        label_encoders_test = {}
+        for col in non_numeric_cols_test:
+            le = LabelEncoder()
+            if col in label_encoders_train:
+                df_test[col] = df_test[col].map(lambda x: label_encoders_train[col].transform([x])[0] if x in label_encoders_train[col].classes_ else -1)
+            else:
+                df_test[col] = le.fit_transform(df_test[col])
+                label_encoders_test[col] = le
+        logging.info("Test Set: Categorical columns converted using Label Encoding.")
+
+    elif args.encoding_type.lower() == "target":
+        if 'target_means' not in locals():  # Ensure mapping exists
+            logging.error("Target encoding failed: Train target means not found.")
+            sys.exit(1)
+
+        # Apply the same mapping from training
+        for col in non_numeric_cols_test:
+            if col in target_means:
+                df_test[col] = df_test[col].map(target_means[col]).fillna(df_train[output_column].mean())
+
+        logging.info("Test Set: Categorical columns converted using Target Encoding.")
+
 
     # Reindex test DataFrame to match training DataFrame columns
     df_test = df_test.reindex(columns=df_train.columns, fill_value=0)
@@ -489,6 +548,7 @@ if df_test_original is not None:
 else:
     test_size = args.test_split_ratio if args.test_split_ratio else 0.2
     X_train_scaled, X_test_scaled, y_train, y_test = train_test_split(X_train_scaled, y_train, test_size=test_size, random_state=42)
+
 logging.info("Test Data Cleaning Completed.")
 
 

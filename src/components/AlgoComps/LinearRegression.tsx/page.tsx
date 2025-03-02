@@ -40,6 +40,8 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
     const [iqrUpper, setIqrUpper] = useState(1.5);
     const [winsorLower, setWinsorLower] = useState(1);
     const [winsorUpper, setWinsorUpper] = useState(99);
+    const [encodingMethod, setEncodingMethod] = useState("one-hot");
+
 
     const availableGraphs = [
         "Heatmap",
@@ -215,29 +217,30 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
             selected_graphs: JSON.stringify(selectedGraphs),
             selected_missingval_tech: JSON.stringify(selectedHandlingMissingValue),
             remove_Duplicates: JSON.stringify(removeDuplicates),
-        
+            encoding_Method: encodingMethod,
+
             // Outlier Detection Parameters
             enable_outlier_detection: JSON.stringify(enableOutlierDetection),
             outlier_method: JSON.stringify(outlierMethod), // "Z-score" / "IQR" / "Winsorization"
-        
+
             // Z-score Method (if selected)
             ...(outlierMethod === "Z-score" && {
                 z_score_threshold: JSON.stringify(zScoreThreshold),
             }),
-        
+
             // IQR Method (if selected)
             ...(outlierMethod === "IQR" && {
                 iqr_lower: JSON.stringify(iqrLower),
                 iqr_upper: JSON.stringify(iqrUpper),
             }),
-        
+
             // Winsorization Method (if selected)
             ...(outlierMethod === "Winsorization" && {
                 winsor_lower: JSON.stringify(winsorLower),
                 winsor_upper: JSON.stringify(winsorUpper),
             }),
         });
-        
+
 
         if (!testFile && testSplitRatio) {
             queryParams.append("test_split_ratio", testSplitRatio);
@@ -695,8 +698,37 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
                                 </div>
                                 <div className="flex gap-x-3">
                                     <div className="dark:bg-[#212628] h-52 rounded-xl w-1/3 bg-white p-2">
+                                        <div className="font-semibold text-sm mb-1 mt-1">Encoding Technique for Categorical Data</div>
+                                        <div className="dark:bg-[#0E0E0E] bg-[#E6E6E6] h-40 p-3 rounded-xl overflow-auto">
 
+                                            {trainFile ? (
+                                                <>
+                                                    <Select onValueChange={setEncodingMethod} value={encodingMethod}>
+                                                        <SelectTrigger className="w-full text-xs text-white">
+                                                            <SelectValue placeholder="Select Encoding Method" />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            <SelectItem value="one-hot">One-Hot Encoding</SelectItem>
+                                                            <SelectItem value="label">Label Encoding</SelectItem>
+                                                            <SelectItem value="target">Target Encoding</SelectItem>
+                                                        </SelectContent>
+                                                    </Select>
+
+                                                    {/* Note for users */}
+                                                    <div className="text-xs text-gray-400 mt-2 text-center">
+                                                        ⚡ If unsure, keep <span className="font-semibold">One-Hot Encoding</span> as default. No effect if no categorical data found.
+                                                    </div>
+                                                </>
+                                            ) : (
+                                                <div className="text-center text-white">
+                                                    Please select a train file to choose an encoding method.
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
+
+
+
                                     <div className="dark:bg-[#212628] h-52 rounded-xl w-1/3 bg-white"></div>
                                     <div className="dark:bg-[#212628] h-52 rounded-xl w-1/3 bg-white"></div>
                                 </div>

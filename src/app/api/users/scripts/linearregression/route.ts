@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
     const selected_graphs = searchParams.get("selected_graphs");
     const selected_missingval_tech = searchParams.get("selected_missingval_tech");
     const remove_Duplicates = searchParams.get("remove_Duplicates") === "true";
-
+    const encoding_method = searchParams.get("encoding_Method");
     // Outlier Detection Parameters
     const enable_outlier_detection = searchParams.get("enable_outlier_detection") === "true";
     const outlier_method = searchParams.get("outlier_method");
@@ -63,6 +63,10 @@ export async function GET(req: NextRequest) {
     if (remove_Duplicates) {
       args.push("--remove_duplicates");
     }
+
+    if (encoding_method) {
+      args.push("--encoding_type", encoding_method);
+  }
 
     // Add Outlier Detection Parameters if enabled
     if (enable_outlier_detection) {
