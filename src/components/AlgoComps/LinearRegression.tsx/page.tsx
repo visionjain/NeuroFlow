@@ -4,8 +4,8 @@ import React, { useState, useEffect, useRef } from "react";
 import { FaPlay, FaSpinner } from "react-icons/fa";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import axios from "axios";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 
@@ -25,7 +25,7 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
     const terminalRef = useRef<HTMLDivElement>(null);
     const [isRunning, setIsRunning] = useState<boolean>(false);
     const [logs, setLogs] = useState<string>("");
-    const [testSplitRatio, setTestSplitRatio] = useState<string>("");
+    const [testSplitRatio, setTestSplitRatio] = useState<string>("0.2");
     const [trainColumns, setTrainColumns] = useState<string[]>([]);
     const [selectedTrainColumns, setSelectedTrainColumns] = useState<string[]>([]);
     const [selectedOutputColumn, setSelectedOutputColumn] = useState<string | null>(null);
@@ -33,6 +33,13 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
     const [selectedGraphs, setSelectedGraphs] = useState<string[]>([]);
     const [selectedHandlingMissingValue, setSelectedHandlingMissingValue] = useState<string>("Drop Rows with Missing Values");
     const [removeDuplicates, setRemoveDuplicates] = useState(true);
+    const [enableOutlierDetection, setEnableOutlierDetection] = useState(false);
+    const [outlierMethod, setOutlierMethod] = useState(""); // Selected method
+    const [zScoreThreshold, setZScoreThreshold] = useState(3.0);
+    const [iqrLower, setIqrLower] = useState(1.5);
+    const [iqrUpper, setIqrUpper] = useState(1.5);
+    const [winsorLower, setWinsorLower] = useState(1);
+    const [winsorUpper, setWinsorUpper] = useState(99);
 
     const availableGraphs = [
         "Heatmap",
@@ -208,7 +215,29 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
             selected_graphs: JSON.stringify(selectedGraphs),
             selected_missingval_tech: JSON.stringify(selectedHandlingMissingValue),
             remove_Duplicates: JSON.stringify(removeDuplicates),
+        
+            // Outlier Detection Parameters
+            enable_outlier_detection: JSON.stringify(enableOutlierDetection),
+            outlier_method: JSON.stringify(outlierMethod), // "Z-score" / "IQR" / "Winsorization"
+        
+            // Z-score Method (if selected)
+            ...(outlierMethod === "Z-score" && {
+                z_score_threshold: JSON.stringify(zScoreThreshold),
+            }),
+        
+            // IQR Method (if selected)
+            ...(outlierMethod === "IQR" && {
+                iqr_lower: JSON.stringify(iqrLower),
+                iqr_upper: JSON.stringify(iqrUpper),
+            }),
+        
+            // Winsorization Method (if selected)
+            ...(outlierMethod === "Winsorization" && {
+                winsor_lower: JSON.stringify(winsorLower),
+                winsor_upper: JSON.stringify(winsorUpper),
+            }),
         });
+        
 
         if (!testFile && testSplitRatio) {
             queryParams.append("test_split_ratio", testSplitRatio);
@@ -564,7 +593,105 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
 
 
 
-                                    <div className="dark:bg-[#212628] h-52 rounded-xl w-1/3 bg-white"></div>
+                                    <div className="dark:bg-[#212628] h-52 rounded-xl w-1/3 bg-white p-2">
+                                        <div className="flex items-center justify-between mb-1 mt-1">
+                                            <div className="font-semibold text-sm ">Outlier Removal</div>
+                                            {trainFile && (
+                                                <div className="flex items-center text-xs cursor-pointer">
+                                                    <Checkbox
+                                                        checked={enableOutlierDetection}
+                                                        onCheckedChange={(checked) => setEnableOutlierDetection(!!checked)}
+                                                        className="mr-2"
+                                                    />
+                                                    <span>Enable Outlier Removal</span>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        <div className="dark:bg-[#0E0E0E] bg-[#E6E6E6] h-40 p-3 rounded-xl overflow-auto">
+                                            {trainFile ? (
+                                                <>
+                                                    {enableOutlierDetection ? (
+                                                        <>
+                                                            {/* Outlier Detection Method Selection */}
+                                                            <Select onValueChange={setOutlierMethod} value={outlierMethod}>
+                                                                <SelectTrigger className="w-full mt-3 text-xs text-white">
+                                                                    <SelectValue placeholder="Select Outlier Method" />
+                                                                </SelectTrigger>
+                                                                <SelectContent>
+                                                                    <SelectItem value="z-score">Z-Score Method</SelectItem>
+                                                                    <SelectItem value="iqr">IQR Method</SelectItem>
+                                                                    <SelectItem value="winsorization">Winsorization</SelectItem>
+                                                                </SelectContent>
+                                                            </Select>
+
+                                                            {/* Method-Specific Inputs */}
+                                                            {outlierMethod === "z-score" && (
+                                                                <div className="mt-2">
+                                                                    <span className="text-xs text-white">Z-Score Threshold:</span>
+                                                                    <Input
+                                                                        type="number"
+                                                                        className="mt-1 w-full text-xs"
+                                                                        value={zScoreThreshold}
+                                                                        onChange={(e) => setZScoreThreshold(parseFloat(e.target.value))}
+                                                                    />
+                                                                </div>
+                                                            )}
+
+                                                            {outlierMethod === "iqr" && (
+                                                                <div className="mt-2">
+                                                                    <span className="text-xs text-white">IQR Multiplier (Lower bound & Upper bound):</span>
+                                                                    <div className="flex space-x-2">
+                                                                        <Input
+                                                                            type="number"
+                                                                            className="mt-1 w-1/2 text-xs"
+                                                                            value={iqrLower}
+                                                                            onChange={(e) => setIqrLower(parseFloat(e.target.value))}
+                                                                        />
+                                                                        <Input
+                                                                            type="number"
+                                                                            className="mt-1 w-1/2 text-xs"
+                                                                            value={iqrUpper}
+                                                                            onChange={(e) => setIqrUpper(parseFloat(e.target.value))}
+                                                                        />
+                                                                    </div>
+                                                                </div>
+                                                            )}
+
+                                                            {outlierMethod === "winsorization" && (
+                                                                <div className="mt-2">
+                                                                    <span className="text-xs text-white">Winsorization Percentiles:</span>
+                                                                    <div className="flex space-x-2">
+                                                                        <Input
+                                                                            type="number"
+                                                                            className="mt-1 w-1/2 text-xs"
+                                                                            value={winsorLower}
+                                                                            onChange={(e) => setWinsorLower(parseFloat(e.target.value))}
+                                                                        />
+                                                                        <Input
+                                                                            type="number"
+                                                                            className="mt-1 w-1/2 text-xs"
+                                                                            value={winsorUpper}
+                                                                            onChange={(e) => setWinsorUpper(parseFloat(e.target.value))}
+                                                                        />
+                                                                    </div>
+                                                                </div>
+                                                            )}
+                                                        </>
+                                                    ) : (
+                                                        <div className="text-center text-white">
+                                                            Enable Outlier Removal to select a method.
+                                                        </div>
+                                                    )}
+                                                </>
+                                            ) : (
+                                                <div className="text-center text-white">
+                                                    Please select a train file to choose for outlier detection.
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+
                                 </div>
                                 <div className="flex gap-x-3">
                                     <div className="dark:bg-[#212628] h-52 rounded-xl w-1/3 bg-white p-2">

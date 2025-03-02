@@ -96,6 +96,15 @@ parser.add_argument("--selected_graphs", required=False, help="Comma-separated l
 parser.add_argument("--selected_missingval_tech", required=True, help="Selected missing value handling technique")
 parser.add_argument("--remove_duplicates", action="store_true", help="Remove duplicate rows from the dataset")
 
+# Outlier Handling Arguments
+parser.add_argument("--enable_outlier_detection", type=str, help="Enable outlier detection (true/false)", default="false")
+parser.add_argument("--outlier_method", type=str, help="Selected outlier removal method")
+parser.add_argument("--z_score_threshold", type=float, help="Threshold for Z-score method", default=3.0)
+parser.add_argument("--iqr_lower", type=float, help="Multiplier for lower bound in IQR", default=1.5)
+parser.add_argument("--iqr_upper", type=float, help="Multiplier for upper bound in IQR", default=1.5)
+parser.add_argument("--winsor_lower", type=int, help="Lower percentile for Winsorization", default=1)
+parser.add_argument("--winsor_upper", type=int, help="Upper percentile for Winsorization", default=99)
+
 
 args = parser.parse_args()
 
@@ -250,11 +259,48 @@ if args.remove_duplicates:
     after_rows = df_train.shape[0]
     logging.info(f"Removed {before_rows - after_rows} duplicate rows from the training dataset.")
 
+# ========== outlier removal ==========
+if args.enable_outlier_detection.lower() == "true":
+    numeric_cols = df_train.select_dtypes(include=[np.number]).columns
+    logging.info(f"🛠️ Outlier removal enabled using method: {args.outlier_method}")
 
-# ========== Remove Outliers Using Z-score ==========
-z_scores = np.abs(stats.zscore(df_train[numeric_cols]))
-df_train = df_train[(z_scores < 3).all(axis=1)]
-logging.info("Outliers removed from numeric columns using Z-score filtering (threshold=3).")
+    # Normalize method string
+    method = str(args.outlier_method).strip().lower().strip('"').strip("'")
+
+    if method == "z-score":
+        logging.info(f"🔹 Applying Z-score method (threshold={args.z_score_threshold})...")
+
+        if len(numeric_cols) == 0:
+            logging.warning("⚠️ No numeric columns found. Skipping Z-score outlier removal.")
+        else:
+            try:
+                z_scores = np.abs(stats.zscore(df_train[numeric_cols]))
+                df_train = df_train[(z_scores < args.z_score_threshold).all(axis=1)]
+                logging.info(f"✅ Outliers removed using Z-score method. New shape: {df_train.shape}")
+            except Exception as e:
+                logging.error(f"⚠️ Error in Z-score computation: {e}")
+
+    elif method == "iqr":
+        logging.info(f"🔹 Applying IQR method...")
+        Q1 = df_train[numeric_cols].quantile(0.25)
+        Q3 = df_train[numeric_cols].quantile(0.75)
+        IQR = Q3 - Q1
+        lower_bound = Q1 - (args.iqr_lower * IQR)
+        upper_bound = Q3 + (args.iqr_upper * IQR)
+        df_train = df_train[~((df_train[numeric_cols] < lower_bound) | (df_train[numeric_cols] > upper_bound)).any(axis=1)]
+        logging.info(f"✅ Outliers removed using IQR method. New shape: {df_train.shape}")
+
+    elif method == "winsorization":
+        logging.info(f"🔹 Applying Winsorization...")
+        from scipy.stats.mstats import winsorize
+        for col in numeric_cols:
+            df_train[col] = winsorize(df_train[col], limits=(args.winsor_lower / 100, (100 - args.winsor_upper) / 100))
+        logging.info(f"✅ Outliers capped using Winsorization.")
+
+else:
+    logging.info("⚠️ Outlier removal is disabled. Skipping outlier detection.")
+
+
 
 # ========== Convert Categorical Columns to Dummy Variables ==========
 feature_cols = [col for col in df_train.columns if col != output_column]
@@ -387,29 +433,64 @@ if df_test_original is not None:
         after_rows = df_test.shape[0]
         logging.info(f"Test Set: Removed {before_rows - after_rows} duplicate rows.")
 
-    # ========== Remove Outliers Using Z-score ==========
-    z_scores_test = np.abs(stats.zscore(df_test[numeric_cols_test]))
-    df_test = df_test[(z_scores_test < 3).all(axis=1)]
-    logging.info("Test Set: Outliers removed from numeric columns using Z-score filtering (threshold=3).")
+    # ========== Outlier Removal for Test Data ==========
+    if args.enable_outlier_detection.lower() == "true":
+        numeric_cols_test = df_test.select_dtypes(include=[np.number]).columns
+        logging.info(f"🛠️ Outlier removal enabled for test set using method: {args.outlier_method}")
+
+        # Normalize method string
+        method = str(args.outlier_method).strip().lower().strip('"').strip("'")
+
+        if method == "z-score":
+            logging.info(f"🔹 Applying Z-score method to test set (threshold={args.z_score_threshold})...")
+
+            if len(numeric_cols_test) == 0:
+                logging.warning("⚠️ No numeric columns found in test set. Skipping outlier removal.")
+            else:
+                try:
+                    z_scores_test = np.abs(stats.zscore(df_test[numeric_cols_test]))
+                    df_test = df_test[(z_scores_test < args.z_score_threshold).all(axis=1)]
+                    logging.info(f"✅ Outliers removed using Z-score method in test set. New shape: {df_test.shape}")
+                except Exception as e:
+                    logging.error(f"⚠️ Error in Z-score computation for test set: {e}")
+
+        elif method == "iqr":
+            logging.info("🔹 Applying IQR method to test set...")
+            Q1 = df_test[numeric_cols_test].quantile(0.25)
+            Q3 = df_test[numeric_cols_test].quantile(0.75)
+            IQR = Q3 - Q1
+            lower_bound = Q1 - (args.iqr_lower * IQR)
+            upper_bound = Q3 + (args.iqr_upper * IQR)
+            df_test = df_test[~((df_test[numeric_cols_test] < lower_bound) | (df_test[numeric_cols_test] > upper_bound)).any(axis=1)]
+            logging.info(f"✅ Outliers removed using IQR method in test set. New shape: {df_test.shape}")
+
+        elif method == "winsorization":
+            logging.info("🔹 Applying Winsorization to test set...")
+            from scipy.stats.mstats import winsorize
+            for col in numeric_cols_test:
+                df_test[col] = winsorize(df_test[col], limits=(args.winsor_lower / 100, (100 - args.winsor_upper) / 100))
+            logging.info("✅ Outliers capped using Winsorization.")
+
+    else:
+        logging.info("⚠️ Outlier removal is disabled for test set. Skipping outlier detection.")
 
     # ========== Convert Categorical Columns to Dummy Variables ==========
     test_feature_cols = [col for col in df_test.columns if col != output_column]
     df_test = pd.get_dummies(df_test, columns=[col for col in test_feature_cols if df_test[col].dtype == 'object'], drop_first=True)
-    logging.info("Test Set: Categorical columns converted to dummy variables.(one-hot encoding)")
+    logging.info("Test Set: Categorical columns converted to dummy variables (one-hot encoding).")
 
-    # Reindex the test DataFrame to match the training DataFrame's columns
+    # Reindex test DataFrame to match training DataFrame columns
     df_test = df_test.reindex(columns=df_train.columns, fill_value=0)
 
-    # Now scale
+    # Now scale test set
     X_test = df_test[existing_train_columns]
     y_test = df_test[output_column]
     X_test_scaled = scaler.transform(X_test)
-
 else:
     test_size = args.test_split_ratio if args.test_split_ratio else 0.2
     X_train_scaled, X_test_scaled, y_train, y_test = train_test_split(X_train_scaled, y_train, test_size=test_size, random_state=42)
-
 logging.info("Test Data Cleaning Completed.")
+
 
 
 

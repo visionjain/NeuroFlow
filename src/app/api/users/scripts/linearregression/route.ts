@@ -17,6 +17,15 @@ export async function GET(req: NextRequest) {
     const selected_missingval_tech = searchParams.get("selected_missingval_tech");
     const remove_Duplicates = searchParams.get("remove_Duplicates") === "true";
 
+    // Outlier Detection Parameters
+    const enable_outlier_detection = searchParams.get("enable_outlier_detection") === "true";
+    const outlier_method = searchParams.get("outlier_method");
+    const z_score_threshold = searchParams.get("z_score_threshold");
+    const iqr_lower = searchParams.get("iqr_lower");
+    const iqr_upper = searchParams.get("iqr_upper");
+    const winsor_lower = searchParams.get("winsor_lower");
+    const winsor_upper = searchParams.get("winsor_upper");
+
     if (!train_csv_path) {
       return new Response("Missing required parameter: train_csv_path", { status: 400 });
     }
@@ -53,6 +62,26 @@ export async function GET(req: NextRequest) {
 
     if (remove_Duplicates) {
       args.push("--remove_duplicates");
+    }
+
+    // Add Outlier Detection Parameters if enabled
+    if (enable_outlier_detection) {
+      args.push("--enable_outlier_detection", "true");
+      args.push("--outlier_method", outlier_method || "");
+
+      if (outlier_method === "Z-score" && z_score_threshold) {
+        args.push("--z_score_threshold", z_score_threshold);
+      }
+
+      if (outlier_method === "IQR" && iqr_lower && iqr_upper) {
+        args.push("--iqr_lower", iqr_lower);
+        args.push("--iqr_upper", iqr_upper);
+      }
+
+      if (outlier_method === "Winsorization" && winsor_lower && winsor_upper) {
+        args.push("--winsor_lower", winsor_lower);
+        args.push("--winsor_upper", winsor_upper);
+      }
     }
 
     return new Response(
