@@ -137,37 +137,45 @@ if not os.path.exists(train_csv_path):
     sys.exit(1)
 
 df_train_original = pd.read_csv(train_csv_path)
-df_train_original.columns = df_train_original.columns.str.strip()  # Strip whitespace from column names
+df_train_original.columns = df_train_original.columns.str.strip().str.replace('"', '').str.replace("'", "")
 
 if test_csv_path and os.path.exists(test_csv_path):
     df_test_original = pd.read_csv(test_csv_path)
-    df_test_original.columns = df_test_original.columns.str.strip()  # Do the same for test data
+    df_test_original.columns = df_test_original.columns.str.strip().str.replace('"', '').str.replace("'", "")
 else:
     df_test_original = None
 
 log_and_print(f"Dataset Loaded Successfully! Shape: {df_train_original.shape}")
 
 
+
+
+
+
+# ========== Data Cleaning & Exploration ==========
+
 logging.info("========== Data Cleaning & Exploration ==========")
 logging.info(f"\nFirst 5 rows:\n{df_train_original.head()}")
 logging.info(f"\nData Summary:\n{df_train_original.describe()}")
 logging.info(f"\nMissing Values:\n{df_train_original.isnull().sum()}")
 
-# ====== Ensure train_columns is a Proper List ======
+# Ensure train_columns is a proper list (especially if passed as a string)
 try:
-    train_columns = ast.literal_eval(args.train_columns)
-    if not isinstance(train_columns, list):
-        raise ValueError("train_columns should be a list.")
+    # Try to evaluate the argument as a Python literal
+    const_columns = ast.literal_eval(args.train_columns)
+    if isinstance(const_columns, list):
+        train_columns = [col.strip() for col in const_columns]
+    else:
+        raise ValueError("Parsed train_columns is not a list.")
 except Exception as e:
-    log_and_print(f"Error parsing train_columns: {e}")
-    sys.exit(1)
+    # If evaluation fails, split by comma
+    train_columns = [col.strip() for col in args.train_columns.split(",")]
 
-# We'll subset to train_columns + output_column so we only clean relevant columns
-# ====== Subset the DataFrame for cleaning ======
+# Subset the DataFrame for cleaning: use only the columns we need
 all_needed_columns = list(set(train_columns + [output_column]))
 df_train = df_train_original[all_needed_columns].copy()
 
-# ====== Data Cleaning on Only the Selected Columns ======
+# Data Cleaning on Only the Selected Columns
 # Fill missing numeric columns with their median
 numeric_cols = df_train.select_dtypes(include=[np.number]).columns
 df_train[numeric_cols] = df_train[numeric_cols].fillna(df_train[numeric_cols].median())
@@ -175,12 +183,12 @@ df_train[numeric_cols] = df_train[numeric_cols].fillna(df_train[numeric_cols].me
 # Fill missing non-numeric columns with 'Unknown'
 non_numeric_cols = df_train.select_dtypes(exclude=[np.number]).columns
 for col in non_numeric_cols:
-    df_train[col].fillna("Unknown", inplace=True)
+    df_train[col] = df_train[col].fillna("Unknown")
 
 # Remove duplicates among the selected columns
 df_train.drop_duplicates(inplace=True)
 
-# (Optional) Remove outliers using Z-score on numeric columns only
+# Remove outliers using Z-score on numeric columns only
 z_scores = np.abs(stats.zscore(df_train.select_dtypes(include=[np.number])))
 df_train = df_train[(z_scores < 3).all(axis=1)]
 
@@ -191,31 +199,56 @@ df_train = pd.get_dummies(df_train, columns=[col for col in feature_cols if df_t
 logging.info("Data cleaning completed.")
 print("\nData Cleaning & Exploration Done. Check logs for details.")
 
-
-
 # ====== Prepare Final Training Data ======
-# Now that we've cleaned only the columns we need:
-# If some specified train_columns got dropped due to outlier removal or didn't exist,
-# we might warn the user or just proceed with what's left
-existing_train_columns = [c for c in train_columns if c in df_train.columns]
-if len(existing_train_columns) < len(train_columns):
-    log_and_print("Warning: Some specified train_columns not found after cleaning. "
-                  "Using only existing columns among the selected subset.")
 
-# If we still have none, there's no point continuing
+def get_existing_train_columns(selected_cols, df):
+    """
+    For each column in selected_cols, if it exists in df, use it.
+    Otherwise, look for any dummy-encoded columns that start with the original column name followed by an underscore.
+    """
+    result = []
+    encoding_added_cols = {}  # Dictionary to track columns added due to encoding
+
+    for col in selected_cols:
+        if col in df.columns:
+            result.append(col)
+        else:
+            # Find all columns created via get_dummies for this categorical column
+            dummy_cols = [c for c in df.columns if c.startswith(f"{col}_")]
+            if dummy_cols:
+                encoding_added_cols[col] = dummy_cols  # Store them for logging
+            result.extend(dummy_cols)
+
+    return result, encoding_added_cols
+
+# Get the final list of columns available for training
+existing_train_columns, encoding_added_cols = get_existing_train_columns(train_columns, df_train)
+
+if len(existing_train_columns) < len(train_columns):
+    log_and_print("Warning: Some specified train_columns were not found directly after cleaning. "
+                  "Using only existing columns (including dummy columns) among the selected subset.")
+
 if not existing_train_columns:
     log_and_print("Error: No valid train columns remain after cleaning.")
     sys.exit(1)
 
-# We'll do a final subset
+# Log added encoding columns separately
+if encoding_added_cols:
+    for orig_col, new_cols in encoding_added_cols.items():
+    
+        log_and_print(f"Encoding Notice: The column '{orig_col}' was encoded into {len(new_cols)} new columns: {new_cols}\n")
+
+# Subset the cleaned DataFrame using the final training columns and the output column
 X_train = df_train[existing_train_columns]
 y_train = df_train[output_column]
 
-log_and_print(f"train_columns: {existing_train_columns}")
-log_and_print(f"Available columns in the selected dataset: {df_train.columns.tolist()}")
+log_and_print(f"Final train_columns: {existing_train_columns}")
+log_and_print(f"Available columns in dataset: {df_train.columns.tolist()}")
 
 scaler = StandardScaler()
 X_train_scaled = scaler.fit_transform(X_train)
+
+
 
 # ====== If There's a Test Dataset ======
 if df_test_original is not None:
@@ -403,11 +436,13 @@ if selected_graphs is None or "Effect Plot" in selected_graphs:
 
 
 
+selected_feature = existing_train_columns[0]
+# Create bins for the selected feature (using original, unscaled values)
+feature_vals = df_train[selected_feature]
+
 # ----- Mean Effect Plot -----
 if selected_graphs is None or "Mean Effect Plot" in selected_graphs:
-    selected_feature = existing_train_columns[0]
-    # Create bins for the selected feature (using original, unscaled values)
-    feature_vals = df_train[selected_feature]
+    
     bins = np.linspace(feature_vals.min(), feature_vals.max(), 20)
     bin_indices = np.digitize(feature_vals, bins)
     mean_effect = []
@@ -439,13 +474,14 @@ if selected_graphs is None or "Mean Effect Plot" in selected_graphs:
 
 
 
+
+
+X_train_full_scaled = scaler.transform(X_train)  # X_train from df_train (full set)
+y_pred_full = model.predict(X_train_full_scaled)
+plt.figure(figsize=(8,6))
 # ----- Individual Effect Plot -----
 if selected_graphs is None or "Individual Effect Plot" in selected_graphs:
     # Generate predictions on the full cleaned training set
-    X_train_full_scaled = scaler.transform(X_train)  # X_train from df_train (full set)
-    y_pred_full = model.predict(X_train_full_scaled)
-
-    plt.figure(figsize=(8,6))
     plt.scatter(df_train[selected_feature].values, y_pred_full, alpha=0.5)
     plt.xlabel(selected_feature)
     plt.ylabel(f"Predicted {output_column}")
@@ -484,6 +520,7 @@ if selected_graphs is None or "Trend Effect Plot" in selected_graphs:
 
 # ----- SHAP Summary Plot for Linear Model -----
 if selected_graphs is None or "Shap Summary Plot" in selected_graphs:
+    # ----- SHAP Summary Plot for Linear Model -----
     try:
         import shap
     except ImportError:
@@ -491,33 +528,20 @@ if selected_graphs is None or "Shap Summary Plot" in selected_graphs:
         run_command("python -m pip install shap")
         import shap
 
-    # Use a linear explainer for your model (without the deprecated feature_perturbation parameter)
-    explainer = shap.LinearExplainer(model, X_train_scaled)
-    shap_values = explainer.shap_values(X_train_scaled)
+    if selected_graphs is None or "Shap Summary Plot" in selected_graphs:
+        # Use a linear explainer without the deprecated parameter
+        explainer = shap.LinearExplainer(model, X_train_scaled)
+        shap_values = explainer.shap_values(X_train_scaled)
 
-    shap_summary_plot_path = os.path.join(output_dir, "shap_summary_plot.png")
-    plt.figure()
-    # Create a DataFrame for the scaled training data using your existing_train_columns
-    X_shap = pd.DataFrame(X_train_scaled, columns=existing_train_columns)
-    shap.summary_plot(shap_values, X_shap, feature_names=existing_train_columns, show=False)
-    plt.title("SHAP Summary Plot")
-    plt.savefig(shap_summary_plot_path, bbox_inches="tight")
-    plt.close()
-    log_and_print(f"SHAP Summary Plot saved to {shap_summary_plot_path}")
+        shap_summary_plot_path = os.path.join(output_dir, "shap_summary_plot.png")
+        plt.figure()
+        X_shap = pd.DataFrame(X_train_scaled, columns=existing_train_columns)
+        shap.summary_plot(shap_values, X_shap, feature_names=existing_train_columns, show=False)
+        plt.title("SHAP Summary Plot")
+        plt.savefig(shap_summary_plot_path, bbox_inches="tight")
+        plt.close()
+        log_and_print(f"SHAP Summary Plot saved to {shap_summary_plot_path}")
 
-
-
-
-
-
-log_and_print("\n======= Model Performance =======")
-log_and_print(f"Mean Squared Error: {mse:.4f}")
-log_and_print(f"R-squared Score: {r2:.4f}")
-
-if is_classification:
-    log_and_print(f"Accuracy Score: {accuracy:.4f}")
-else:
-    log_and_print("Skipping accuracy score because target is continuous.")
 
 
 
@@ -532,5 +556,19 @@ with open(path_file, "w") as f:
     f.write(f"Model Path: {model_path}\\n")
     f.write(f"CSV Path: {train_csv_path}\\n")
 log_and_print(f"Saved paths in '{path_file}'")
+
+
+
+log_and_print("\n======= Model Performance =======")
+log_and_print(f"Mean Squared Error: {mse:.4f}")
+log_and_print(f"R-squared Score: {r2:.4f}")
+
+if is_classification:
+    log_and_print(f"Accuracy Score: {accuracy:.4f}")
+else:
+    log_and_print("Skipping accuracy score because target is continuous.")
+
+
+
 
 log_and_print("========== FINISHED SUCCESSFULLY ==========")

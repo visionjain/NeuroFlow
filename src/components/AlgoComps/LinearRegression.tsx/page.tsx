@@ -33,7 +33,6 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
     const [selectedGraphs, setSelectedGraphs] = useState<string[]>([]);
 
     const availableGraphs = [
-        "Effect Plot",
         "Heatmap",
         "Histogram Distribution",
         "Histogram Residuals",
