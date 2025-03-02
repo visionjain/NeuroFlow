@@ -94,6 +94,7 @@ parser.add_argument("--train_columns", required=True, help="Comma-separated colu
 parser.add_argument("--output_column", required=True, help="Name of the target output column")
 parser.add_argument("--selected_graphs", required=False, help="Comma-separated list of graph filenames to generate (optional)")
 parser.add_argument("--selected_missingval_tech", required=True, help="Selected missing value handling technique")
+parser.add_argument("--remove_duplicates", action="store_true", help="Remove duplicate rows from the dataset")
 
 
 args = parser.parse_args()
@@ -242,10 +243,13 @@ else:
     sys.exit(1)
 
 # ========== Remove Duplicates ==========
-before_rows = df_train.shape[0]
-df_train.drop_duplicates(inplace=True)
-after_rows = df_train.shape[0]
-logging.info(f"Removed {before_rows - after_rows} duplicate rows from the training dataset.")
+# Apply Remove Duplicates only if the flag is passed
+if args.remove_duplicates:
+    before_rows = df_train.shape[0]
+    df_train.drop_duplicates(inplace=True)
+    after_rows = df_train.shape[0]
+    logging.info(f"Removed {before_rows - after_rows} duplicate rows from the training dataset.")
+
 
 # ========== Remove Outliers Using Z-score ==========
 z_scores = np.abs(stats.zscore(df_train[numeric_cols]))
@@ -376,10 +380,12 @@ if df_test_original is not None:
         sys.exit(1)
 
     # ========== Remove Duplicates ==========
-    before_rows = df_test.shape[0]
-    df_test.drop_duplicates(inplace=True)
-    after_rows = df_test.shape[0]
-    logging.info(f"Test Set: Removed {before_rows - after_rows} duplicate rows.")
+    # Apply Remove Duplicates only if the flag is passed
+    if args.remove_duplicates:
+        before_rows = df_test.shape[0]
+        df_test.drop_duplicates(inplace=True)
+        after_rows = df_test.shape[0]
+        logging.info(f"Test Set: Removed {before_rows - after_rows} duplicate rows.")
 
     # ========== Remove Outliers Using Z-score ==========
     z_scores_test = np.abs(stats.zscore(df_test[numeric_cols_test]))

@@ -32,6 +32,7 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
     const [results, setResults] = useState<string>("");
     const [selectedGraphs, setSelectedGraphs] = useState<string[]>([]);
     const [selectedHandlingMissingValue, setSelectedHandlingMissingValue] = useState<string>("Drop Rows with Missing Values");
+    const [removeDuplicates, setRemoveDuplicates] = useState(true);
 
     const availableGraphs = [
         "Heatmap",
@@ -206,6 +207,7 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
             output_column: selectedOutputColumn,
             selected_graphs: JSON.stringify(selectedGraphs),
             selected_missingval_tech: JSON.stringify(selectedHandlingMissingValue),
+            remove_Duplicates: JSON.stringify(removeDuplicates),
         });
 
         if (!testFile && testSplitRatio) {
@@ -420,46 +422,62 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
                                     <div className="dark:bg-[#212628] h-52 rounded-xl w-1/3 bg-white p-2">
                                         <div className="flex items-center justify-between mb-1 mt-1">
                                             <div className="font-semibold text-sm">Select Train Columns</div>
-                                            <div className="flex items-center">
-                                                <Checkbox
-                                                    checked={selectedTrainColumns.length === trainColumns.length}
-                                                    onCheckedChange={() => toggleSelectAll()}
-                                                />
-                                                <span className="ml-1 text-xs">Select All</span>
-                                            </div>
+
+                                            {/* Show "Select All" Checkbox only if a file is selected */}
+                                            {trainFile && (
+                                                <div className="flex items-center">
+                                                    <Checkbox
+                                                        checked={selectedTrainColumns.length === trainColumns.length}
+                                                        onCheckedChange={() => toggleSelectAll()}
+                                                    />
+                                                    <span className="ml-1 text-xs">Select All</span>
+                                                </div>
+                                            )}
                                         </div>
+
                                         <div className="dark:bg-[#0E0E0E] bg-[#E6E6E6] h-40 p-3 rounded-xl overflow-auto">
-                                            <div className="grid grid-cols-2 gap-1">
-                                                {trainColumns.map((col, index) => (
-                                                    <div key={index} className="flex items-center text-xs">
-                                                        <Checkbox
-                                                            checked={selectedTrainColumns.includes(col)}
-                                                            onCheckedChange={() => toggleTrainColumn(col)}
-                                                        />
-                                                        <span className="ml-1">{col}</span>
-                                                    </div>
-                                                ))}
-                                            </div>
+                                            {trainFile ? (
+                                                <div className="grid grid-cols-2 gap-1">
+                                                    {trainColumns.map((col, index) => (
+                                                        <div key={index} className="flex items-center text-xs">
+                                                            <Checkbox
+                                                                checked={selectedTrainColumns.includes(col)}
+                                                                onCheckedChange={() => toggleTrainColumn(col)}
+                                                            />
+                                                            <span className="ml-1">{col}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            ) : (
+                                                <div className="text-center">Please select a train file to enable column selection.</div>
+                                            )}
                                         </div>
                                     </div>
+
 
 
                                     <div className="dark:bg-[#212628] h-52 rounded-xl w-1/3 bg-white p-2">
                                         <div className="font-semibold text-sm mb-1 mt-1">Select Output Column</div>
+
                                         <div className="dark:bg-[#0E0E0E] bg-[#E6E6E6] h-40 p-3 rounded-xl overflow-auto">
-                                            <div className="grid grid-cols-2 gap-1">
-                                                {trainColumns.map((col, index) => (
-                                                    <div key={index} className="flex items-center text-xs">
-                                                        <Checkbox
-                                                            checked={selectedOutputColumn === col}
-                                                            onCheckedChange={() => handleOutputColumnSelect(col)}
-                                                        />
-                                                        <span className="ml-1">{col}</span>
-                                                    </div>
-                                                ))}
-                                            </div>
+                                            {trainFile ? (
+                                                <div className="grid grid-cols-2 gap-1">
+                                                    {trainColumns.map((col, index) => (
+                                                        <div key={index} className="flex items-center text-xs">
+                                                            <Checkbox
+                                                                checked={selectedOutputColumn === col}
+                                                                onCheckedChange={() => handleOutputColumnSelect(col)}
+                                                            />
+                                                            <span className="ml-1">{col}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            ) : (
+                                                <div className="text-center">Please select a train file to select output column.</div>
+                                            )}
                                         </div>
                                     </div>
+
 
 
                                 </div>
@@ -504,29 +522,43 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
                                     <div className="dark:bg-[#212628] h-52 rounded-xl w-1/3 bg-white p-2">
                                         <div className="flex items-center justify-between mb-1 mt-1">
                                             <div className="font-semibold text-sm">Handling Missing Values</div>
+
+                                            {/* Remove Duplicates Checkbox (Only shows if a file is selected) */}
+                                            {trainFile && (
+                                                <div className="flex items-center text-xs cursor-pointer">
+
+                                                    <Checkbox
+                                                        checked={removeDuplicates}
+                                                        onCheckedChange={(checked) => setRemoveDuplicates(!!checked)} // Ensures it's always a boolean
+                                                        className="mr-2"
+                                                    />
+                                                    <span>Remove Duplicates</span>
+                                                </div>
+                                            )}
                                         </div>
+
                                         <div className="dark:bg-[#0E0E0E] bg-[#E6E6E6] h-40 p-3 rounded-xl overflow-auto">
-                                            <div>
-                                                {trainFile ? (
-                                                    <div className="grid grid-cols-1 gap-1">
-                                                        {availableHandlingMissingValues.map((method) => (
-                                                            <label key={method} className="flex items-center text-xs cursor-pointer">
-                                                                <input
-                                                                    type="radio"
-                                                                    name="missingValueHandling"
-                                                                    value={method}
-                                                                    checked={selectedHandlingMissingValue === method}
-                                                                    onChange={() => setSelectedHandlingMissingValue(method)}
-                                                                    className="mr-2"
-                                                                />
-                                                                <span>{method}</span>
-                                                            </label>
-                                                        ))}
-                                                    </div>
-                                                ) : (
-                                                    <div className="text-center">Please select a train file to enable missing value handling.</div>
-                                                )}
-                                            </div>
+                                            {trainFile ? (
+                                                <div className="grid grid-cols-1 gap-1">
+                                                    {availableHandlingMissingValues.map((method) => (
+                                                        <label key={method} className="flex items-center text-xs cursor-pointer">
+                                                            <input
+                                                                type="radio"
+                                                                name="missingValueHandling"
+                                                                value={method}
+                                                                checked={selectedHandlingMissingValue === method}
+                                                                onChange={() => setSelectedHandlingMissingValue(method)}
+                                                                className="mr-2"
+                                                            />
+                                                            <span>{method}</span>
+                                                        </label>
+                                                    ))}
+                                                </div>
+                                            ) : (
+                                                <div className="text-center">
+                                                    Please select a train file to enable options.
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
 

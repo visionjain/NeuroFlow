@@ -15,6 +15,7 @@ export async function GET(req: NextRequest) {
     const output_column = searchParams.get("output_column");
     const selected_graphs = searchParams.get("selected_graphs");
     const selected_missingval_tech = searchParams.get("selected_missingval_tech");
+    const remove_Duplicates = searchParams.get("remove_Duplicates") === "true";
 
     if (!train_csv_path) {
       return new Response("Missing required parameter: train_csv_path", { status: 400 });
@@ -48,6 +49,10 @@ export async function GET(req: NextRequest) {
 
     if (selected_missingval_tech) {
       args.push("--selected_missingval_tech", selected_missingval_tech);
+    }
+
+    if (remove_Duplicates) {
+      args.push("--remove_duplicates");
     }
 
     return new Response(
