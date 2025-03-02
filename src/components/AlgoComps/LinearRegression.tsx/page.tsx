@@ -31,6 +31,7 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
     const [selectedOutputColumn, setSelectedOutputColumn] = useState<string | null>(null);
     const [results, setResults] = useState<string>("");
     const [selectedGraphs, setSelectedGraphs] = useState<string[]>([]);
+    const [selectedHandlingMissingValue, setSelectedHandlingMissingValue] = useState<string>("Drop Rows with Missing Values");
 
     const availableGraphs = [
         "Heatmap",
@@ -42,6 +43,14 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
         "Residual Plot",
         "Shap Summary Plot",
         "Trend Effect Plot",
+        "Box Plot",
+    ];
+    const availableHandlingMissingValues = [
+        "Mean Imputation",
+        "Median Imputation",
+        "Mode Imputation",
+        "Forward/Backward Fill",
+        "Drop Rows with Missing Values",
     ];
 
 
@@ -196,6 +205,7 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
             train_columns: JSON.stringify(selectedTrainColumns),
             output_column: selectedOutputColumn,
             selected_graphs: JSON.stringify(selectedGraphs),
+            selected_missingval_tech: JSON.stringify(selectedHandlingMissingValue),
         });
 
         if (!testFile && testSplitRatio) {
@@ -490,7 +500,38 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
                                             </div>
                                         </div>
                                     </div>
-                                    <div className="dark:bg-[#212628] h-52 rounded-xl w-1/3 bg-white"></div>
+
+                                    <div className="dark:bg-[#212628] h-52 rounded-xl w-1/3 bg-white p-2">
+                                        <div className="flex items-center justify-between mb-1 mt-1">
+                                            <div className="font-semibold text-sm">Handling Missing Values</div>
+                                        </div>
+                                        <div className="dark:bg-[#0E0E0E] bg-[#E6E6E6] h-40 p-3 rounded-xl overflow-auto">
+                                            <div>
+                                                {trainFile ? (
+                                                    <div className="grid grid-cols-1 gap-1">
+                                                        {availableHandlingMissingValues.map((method) => (
+                                                            <label key={method} className="flex items-center text-xs cursor-pointer">
+                                                                <input
+                                                                    type="radio"
+                                                                    name="missingValueHandling"
+                                                                    value={method}
+                                                                    checked={selectedHandlingMissingValue === method}
+                                                                    onChange={() => setSelectedHandlingMissingValue(method)}
+                                                                    className="mr-2"
+                                                                />
+                                                                <span>{method}</span>
+                                                            </label>
+                                                        ))}
+                                                    </div>
+                                                ) : (
+                                                    <div className="text-center">Please select a train file to enable missing value handling.</div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+
+
+
                                     <div className="dark:bg-[#212628] h-52 rounded-xl w-1/3 bg-white"></div>
                                 </div>
                                 <div className="flex gap-x-3">

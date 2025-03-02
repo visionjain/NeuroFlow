@@ -14,6 +14,7 @@ export async function GET(req: NextRequest) {
     const train_columns = searchParams.get("train_columns");
     const output_column = searchParams.get("output_column");
     const selected_graphs = searchParams.get("selected_graphs");
+    const selected_missingval_tech = searchParams.get("selected_missingval_tech");
 
     if (!train_csv_path) {
       return new Response("Missing required parameter: train_csv_path", { status: 400 });
@@ -43,6 +44,10 @@ export async function GET(req: NextRequest) {
 
     if (selected_graphs) {
       args.push("--selected_graphs", selected_graphs);
+    }
+
+    if (selected_missingval_tech) {
+      args.push("--selected_missingval_tech", selected_missingval_tech);
     }
 
     return new Response(

@@ -5,11 +5,15 @@ import os
 import argparse
 import logging
 
+
+
 def log_and_print(message):
     """Logs and prints the message with extra blank lines and a separator."""
     print(message)
     print("-" * 200)
     sys.stdout.flush()
+
+
 
 
 
@@ -28,6 +32,10 @@ def run_command(command):
     except subprocess.CalledProcessError as e:
         log_and_print(f"Command failed: {command}\\nError: {e}")
         sys.exit(1)
+
+
+
+
 
 
 # ====== Check Python Installation ======
@@ -70,6 +78,13 @@ import joblib
 from scipy import stats
 
 
+
+
+
+
+
+
+
 # ====== Parse Command-Line Arguments ======
 parser = argparse.ArgumentParser(description="Run Linear Regression Model")
 parser.add_argument("--train_csv_path", required=True, help="Path to the training dataset CSV")
@@ -78,11 +93,14 @@ parser.add_argument("--test_split_ratio", type=float, help="Test split ratio if 
 parser.add_argument("--train_columns", required=True, help="Comma-separated column names for training features")
 parser.add_argument("--output_column", required=True, help="Name of the target output column")
 parser.add_argument("--selected_graphs", required=False, help="Comma-separated list of graph filenames to generate (optional)")
+parser.add_argument("--selected_missingval_tech", required=True, help="Selected missing value handling technique")
+
 
 args = parser.parse_args()
 
 train_csv_path = args.train_csv_path
 test_csv_path = args.test_csv_path if args.test_csv_path and args.test_csv_path.lower() != "none" else None
+selected_missingval_tech = args.selected_missingval_tech.strip('"')  # Clean extra quotes if present
 
 # This will be refined via ast.literal_eval further below
 train_columns = args.train_columns.split(",")  
@@ -101,6 +119,12 @@ if args.selected_graphs:
     except Exception as e:
         logging.error(f"Error parsing selected_graphs: {e}")
         sys.exit(1)
+
+
+
+
+
+
 
 
 # ====== Function to Create Log File in Output Directory ======
@@ -131,6 +155,12 @@ logging.getLogger().addHandler(console_handler)
 
 log_and_print("========== STARTED ==========")
 
+
+
+
+
+
+
 # ====== Check If Dataset Exists ======
 if not os.path.exists(train_csv_path):
     log_and_print(f"Training dataset not found at {train_csv_path}. Exiting.")
@@ -152,13 +182,17 @@ log_and_print(f"Dataset Loaded Successfully! Shape: {df_train_original.shape}")
 
 
 
-# ========== Data Cleaning & Exploration ==========
+# ========== Data Exploration ==========
 
 logging.info("========== Data Cleaning & Exploration ==========")
 logging.info(f"\nFirst 5 rows:\n{df_train_original.head()}")
 logging.info(f"\nData Summary:\n{df_train_original.describe()}")
 logging.info(f"\nMissing Values:\n{df_train_original.isnull().sum()}")
 
+
+
+
+# ========== Data Cleaning ==========
 # Ensure train_columns is a proper list (especially if passed as a string)
 try:
     # Try to evaluate the argument as a Python literal
@@ -171,33 +205,69 @@ except Exception as e:
     # If evaluation fails, split by comma
     train_columns = [col.strip() for col in args.train_columns.split(",")]
 
-# Subset the DataFrame for cleaning: use only the columns we need
+# Select only the required columns
 all_needed_columns = list(set(train_columns + [output_column]))
 df_train = df_train_original[all_needed_columns].copy()
 
-# Data Cleaning on Only the Selected Columns
-# Fill missing numeric columns with their median
+# Identify numeric and non-numeric columns
 numeric_cols = df_train.select_dtypes(include=[np.number]).columns
-df_train[numeric_cols] = df_train[numeric_cols].fillna(df_train[numeric_cols].median())
-
-# Fill missing non-numeric columns with 'Unknown'
 non_numeric_cols = df_train.select_dtypes(exclude=[np.number]).columns
-for col in non_numeric_cols:
-    df_train[col] = df_train[col].fillna("Unknown")
 
-# Remove duplicates among the selected columns
+logging.info("Starting missing value handling for training dataset...")
+
+# ========== Handle Missing Values Based on User Selection ==========
+if selected_missingval_tech == "Mean Imputation":
+    df_train[numeric_cols] = df_train[numeric_cols].fillna(df_train[numeric_cols].mean())
+    logging.info("Missing values in numeric columns filled using Mean Imputation.")
+elif selected_missingval_tech == "Median Imputation":
+    df_train[numeric_cols] = df_train[numeric_cols].fillna(df_train[numeric_cols].median())
+    logging.info("Missing values in numeric columns filled using Median Imputation.")
+elif selected_missingval_tech == "Mode Imputation":
+    for col in numeric_cols:
+        df_train[col] = df_train[col].fillna(df_train[col].mode()[0])
+    for col in non_numeric_cols:
+        df_train[col] = df_train[col].fillna(df_train[col].mode()[0])  
+    logging.info("Missing values filled using Mode Imputation.")
+elif selected_missingval_tech == "Forward/Backward Fill":
+    df_train.ffill(inplace=True)
+    df_train.bfill(inplace=True)
+    logging.info("Missing values filled using Forward/Backward Fill.")
+elif selected_missingval_tech == "Drop Rows with Missing Values":
+    before_rows = df_train.shape[0]
+    df_train.dropna(inplace=True)
+    after_rows = df_train.shape[0]
+    logging.info(f"Dropped {before_rows - after_rows} rows due to missing values.")
+else:
+    logging.error(f"Invalid missing value handling technique: {selected_missingval_tech}")
+    sys.exit(1)
+
+# ========== Remove Duplicates ==========
+before_rows = df_train.shape[0]
 df_train.drop_duplicates(inplace=True)
+after_rows = df_train.shape[0]
+logging.info(f"Removed {before_rows - after_rows} duplicate rows from the training dataset.")
 
-# Remove outliers using Z-score on numeric columns only
-z_scores = np.abs(stats.zscore(df_train.select_dtypes(include=[np.number])))
+# ========== Remove Outliers Using Z-score ==========
+z_scores = np.abs(stats.zscore(df_train[numeric_cols]))
 df_train = df_train[(z_scores < 3).all(axis=1)]
+logging.info("Outliers removed from numeric columns using Z-score filtering (threshold=3).")
 
-# Convert non-numeric feature columns (excluding the output) to dummy variables
+# ========== Convert Categorical Columns to Dummy Variables ==========
 feature_cols = [col for col in df_train.columns if col != output_column]
 df_train = pd.get_dummies(df_train, columns=[col for col in feature_cols if df_train[col].dtype == 'object'], drop_first=True)
+logging.info("Categorical columns converted to dummy variables (one-hot encoding).")
 
-logging.info("Data cleaning completed.")
+logging.info("Training Data Cleaning Completed.")
 print("\nData Cleaning & Exploration Done. Check logs for details.")
+
+
+
+
+
+
+
+
+
 
 # ====== Prepare Final Training Data ======
 
@@ -250,44 +320,96 @@ X_train_scaled = scaler.fit_transform(X_train)
 
 
 
+
+
+
+
+
+
+
 # ====== If There's a Test Dataset ======
 if df_test_original is not None:
+    logging.info("Starting data cleaning for test dataset...")
+    
     # Strip whitespace from test dataset column names
     df_test_original.columns = df_test_original.columns.str.strip()
     
     # Check that required columns exist in the test data
     missing_in_test = [col for col in all_needed_columns if col not in df_test_original.columns]
     if missing_in_test:
-        log_and_print(f"Error: The following columns are missing in the test dataset: {missing_in_test}")
+        logging.error(f"Error: The following columns are missing in the test dataset: {missing_in_test}")
         sys.exit(1)
     
     # Subset to same columns as training
     df_test = df_test_original[all_needed_columns].copy()
 
-    # Apply the same cleaning steps for the test subset
-    df_test[numeric_cols] = df_test[numeric_cols].fillna(df_test[numeric_cols].median())
-    for col in non_numeric_cols:
-        if col in df_test.columns:
-            df_test[col].fillna("Unknown", inplace=True)
+    # Identify numeric and non-numeric columns in test set
+    numeric_cols_test = df_test.select_dtypes(include=[np.number]).columns
+    non_numeric_cols_test = df_test.select_dtypes(exclude=[np.number]).columns
 
-    # (Optional) Apply one-hot encoding on feature columns if needed,
-    # then reindex the test DataFrame to match the training DataFrame's columns
+    logging.info("Applying missing value handling for test dataset (using train set statistics)...")
+
+    # ========== Handle Missing Values (Same as Training Set) ==========
+    if selected_missingval_tech == "Mean Imputation":
+        df_test[numeric_cols_test] = df_test[numeric_cols_test].fillna(df_train[numeric_cols].mean())
+        logging.info("Test Set: Missing values in numeric columns filled using Mean Imputation (train mean).")
+    elif selected_missingval_tech == "Median Imputation":
+        df_test[numeric_cols_test] = df_test[numeric_cols_test].fillna(df_train[numeric_cols].median())
+        logging.info("Test Set: Missing values in numeric columns filled using Median Imputation (train median).")
+    elif selected_missingval_tech == "Mode Imputation":
+        for col in numeric_cols_test:
+            df_test[col] = df_test[col].fillna(df_train[col].mode()[0])  # ✅ FIXED
+        for col in non_numeric_cols_test:
+            df_test[col] = df_test[col].fillna(df_train[col].mode()[0])  # ✅ FIXED
+        logging.info("Test Set: Missing values filled using Mode Imputation (train mode).")
+    elif selected_missingval_tech == "Forward/Backward Fill":
+        df_test.ffill(inplace=True)
+        df_test.bfill(inplace=True)
+        logging.info("Test Set: Missing values filled using Forward/Backward Fill.")
+    elif selected_missingval_tech == "Drop Rows with Missing Values":
+        before_rows = df_test.shape[0]
+        df_test.dropna(inplace=True)
+        after_rows = df_test.shape[0]
+        logging.info(f"Test Set: Dropped {before_rows - after_rows} rows due to missing values.")
+    else:
+        logging.error(f"Invalid missing value handling technique: {selected_missingval_tech}")
+        sys.exit(1)
+
+    # ========== Remove Duplicates ==========
+    before_rows = df_test.shape[0]
+    df_test.drop_duplicates(inplace=True)
+    after_rows = df_test.shape[0]
+    logging.info(f"Test Set: Removed {before_rows - after_rows} duplicate rows.")
+
+    # ========== Remove Outliers Using Z-score ==========
+    z_scores_test = np.abs(stats.zscore(df_test[numeric_cols_test]))
+    df_test = df_test[(z_scores_test < 3).all(axis=1)]
+    logging.info("Test Set: Outliers removed from numeric columns using Z-score filtering (threshold=3).")
+
+    # ========== Convert Categorical Columns to Dummy Variables ==========
     test_feature_cols = [col for col in df_test.columns if col != output_column]
     df_test = pd.get_dummies(df_test, columns=[col for col in test_feature_cols if df_test[col].dtype == 'object'], drop_first=True)
+    logging.info("Test Set: Categorical columns converted to dummy variables.(one-hot encoding)")
+
+    # Reindex the test DataFrame to match the training DataFrame's columns
     df_test = df_test.reindex(columns=df_train.columns, fill_value=0)
-    
+
     # Now scale
     X_test = df_test[existing_train_columns]
     y_test = df_test[output_column]
     X_test_scaled = scaler.transform(X_test)
-else:
-    # If no test CSV is provided, do train_test_split
-    test_size = args.test_split_ratio if args.test_split_ratio else 0.2
-    X_train_scaled, X_test_scaled, y_train, y_test = train_test_split(
-        X_train_scaled, y_train, test_size=test_size, random_state=42
-    )
 
-log_and_print("Data Pre-processing Completed.")
+else:
+    test_size = args.test_split_ratio if args.test_split_ratio else 0.2
+    X_train_scaled, X_test_scaled, y_train, y_test = train_test_split(X_train_scaled, y_train, test_size=test_size, random_state=42)
+
+logging.info("Test Data Cleaning Completed.")
+
+
+
+
+
+
 
 
 # ====== Train Model ======
@@ -316,6 +438,10 @@ else:
 # ====== Calculate Performance Metrics ======
 mse = mean_squared_error(y_test, y_pred)
 r2 = r2_score(y_test, y_pred)
+
+
+
+
 
 
 # ====== Plots ======
@@ -349,6 +475,25 @@ if selected_graphs is None or "Histogram Distribution" in selected_graphs:
     plt.savefig(histogram_path)
     plt.close()
     log_and_print(f"Output distribution histogram saved to {histogram_path}")
+
+# ====== Save Box Plots for All Columns ======
+if selected_graphs is None or "Box Plot" in selected_graphs:
+    boxplot_path = os.path.join(output_dir, "Box_plots.png")
+    
+    # Select only numeric columns for box plot visualization
+    numeric_cols = df_train.select_dtypes(include=[np.number]).columns.tolist()
+    
+    if numeric_cols:
+        plt.figure(figsize=(12, 6))
+        sns.boxplot(data=df_train[numeric_cols])
+        plt.xticks(rotation=90)  # Rotate x-axis labels for readability
+        plt.title("Box Plots for All Numeric Features")
+        plt.savefig(boxplot_path, bbox_inches="tight")  # Save with tight layout
+        plt.close()
+        log_and_print(f"Box plots saved to {boxplot_path}")
+    else:
+        log_and_print("No numeric columns found for box plots.")
+
 
 
 # this is for residual and reuse
@@ -541,6 +686,8 @@ if selected_graphs is None or "Shap Summary Plot" in selected_graphs:
         plt.savefig(shap_summary_plot_path, bbox_inches="tight")
         plt.close()
         log_and_print(f"SHAP Summary Plot saved to {shap_summary_plot_path}")
+
+
 
 
 
