@@ -30,7 +30,20 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
     const [selectedTrainColumns, setSelectedTrainColumns] = useState<string[]>([]);
     const [selectedOutputColumn, setSelectedOutputColumn] = useState<string | null>(null);
     const [results, setResults] = useState<string>("");
+    const [selectedGraphs, setSelectedGraphs] = useState<string[]>([]);
 
+    const availableGraphs = [
+        "Effect Plot",
+        "Heatmap",
+        "Histogram Distribution",
+        "Histogram Residuals",
+        "Individual Effect Plot",
+        "Mean Effect Plot",
+        "Model Coefficients",
+        "Residual Plot",
+        "Shap Summary Plot",
+        "Trend Effect Plot",
+    ];
 
 
     useEffect(() => {
@@ -118,6 +131,23 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
     };
 
 
+    const toggleGraph = (graph: string) => {
+        setSelectedGraphs((prev) =>
+            prev.includes(graph)
+                ? prev.filter((g) => g !== graph)
+                : [...prev, graph]
+        );
+    };
+
+    // Function to select/deselect all graphs
+    const toggleSelectAllGraphs = () => {
+        if (selectedGraphs.length === availableGraphs.length) {
+            setSelectedGraphs([]);
+        } else {
+            setSelectedGraphs([...availableGraphs]);
+        }
+    };
+
 
 
 
@@ -166,6 +196,7 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
             test_csv_path,
             train_columns: JSON.stringify(selectedTrainColumns),
             output_column: selectedOutputColumn,
+            selected_graphs: JSON.stringify(selectedGraphs),
         });
 
         if (!testFile && testSplitRatio) {
@@ -426,9 +457,49 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
 
                                 {/* Second Row */}
                                 <div className="flex gap-x-3">
-                                    <div className="dark:bg-[#212628] h-64 rounded-xl w-1/3 bg-white"></div>
-                                    <div className="dark:bg-[#212628] h-64 rounded-xl w-1/3 bg-white"></div>
-                                    <div className="dark:bg-[#212628] h-64 rounded-xl w-1/3 bg-white"></div>
+                                    <div className="dark:bg-[#212628] h-52 rounded-xl w-1/3 bg-white p-2">
+                                        <div className="flex items-center justify-between mb-1 mt-1">
+                                            <div className="font-semibold text-sm">Select Graphs</div>
+                                            <div className="flex items-center">
+                                                <Checkbox
+                                                    checked={selectedGraphs.length === availableGraphs.length}
+                                                    onCheckedChange={toggleSelectAllGraphs}
+                                                />
+                                                <span className="ml-2 text-xs">Select All</span>
+                                            </div>
+                                        </div>
+                                        <div className="dark:bg-[#0E0E0E] bg-[#E6E6E6] h-40 p-3 rounded-xl overflow-auto">
+                                            <div>
+                                                {trainFile ? (
+                                                    <>
+
+                                                        <div className="grid grid-cols-2 gap-1">
+                                                            {availableGraphs.map((graph) => (
+                                                                <div key={graph} className="flex items-center text-xs">
+                                                                    <Checkbox
+                                                                        checked={selectedGraphs.includes(graph)}
+                                                                        onCheckedChange={() => toggleGraph(graph)}
+                                                                    />
+                                                                    <span className="ml-1">{graph}</span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </>
+                                                ) : (
+                                                    <div className="text-center">Please select a train file to enable graph selection.</div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="dark:bg-[#212628] h-52 rounded-xl w-1/3 bg-white"></div>
+                                    <div className="dark:bg-[#212628] h-52 rounded-xl w-1/3 bg-white"></div>
+                                </div>
+                                <div className="flex gap-x-3">
+                                    <div className="dark:bg-[#212628] h-52 rounded-xl w-1/3 bg-white p-2">
+
+                                    </div>
+                                    <div className="dark:bg-[#212628] h-52 rounded-xl w-1/3 bg-white"></div>
+                                    <div className="dark:bg-[#212628] h-52 rounded-xl w-1/3 bg-white"></div>
                                 </div>
                             </div>
 

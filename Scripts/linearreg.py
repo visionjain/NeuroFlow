@@ -77,6 +77,7 @@ parser.add_argument("--test_csv_path", required=False, help="Path to the test da
 parser.add_argument("--test_split_ratio", type=float, help="Test split ratio if test dataset is not provided")
 parser.add_argument("--train_columns", required=True, help="Comma-separated column names for training features")
 parser.add_argument("--output_column", required=True, help="Name of the target output column")
+parser.add_argument("--selected_graphs", required=False, help="Comma-separated list of graph filenames to generate (optional)")
 
 args = parser.parse_args()
 
@@ -86,6 +87,21 @@ test_csv_path = args.test_csv_path if args.test_csv_path and args.test_csv_path.
 # This will be refined via ast.literal_eval further below
 train_columns = args.train_columns.split(",")  
 output_column = args.output_column
+
+
+# Process selected_graphs argument into a list (if provided)
+selected_graphs = None
+if args.selected_graphs:
+    try:
+        # If the string starts with '[' then attempt to literal_eval, otherwise split by comma
+        if args.selected_graphs.strip().startswith("["):
+            selected_graphs = ast.literal_eval(args.selected_graphs)
+        else:
+            selected_graphs = [g.strip() for g in args.selected_graphs.split(",")]
+    except Exception as e:
+        logging.error(f"Error parsing selected_graphs: {e}")
+        sys.exit(1)
+
 
 # ====== Function to Create Log File in Output Directory ======
 def get_output_dir(csv_path):
@@ -176,29 +192,6 @@ logging.info("Data cleaning completed.")
 print("\nData Cleaning & Exploration Done. Check logs for details.")
 
 
-# ====== Correlation & Basic Exploration ======
-# Only for numeric columns in the selected subset
-numeric_corr = df_train.select_dtypes(include=[np.number]).corr()
-logging.info(f"\nCorrelation Matrix:\n{numeric_corr}")
-
-# ====== Save Feature Correlation Heatmap (Selected Columns Only) ======
-heatmap_path = os.path.join(output_dir, "heatmap.png")
-plt.figure(figsize=(10, 6))
-sns.heatmap(numeric_corr, annot=True, cmap="coolwarm")
-plt.title("Feature Correlation Heatmap")
-plt.savefig(heatmap_path)
-plt.close()
-log_and_print(f"Feature correlation heatmap saved to {heatmap_path}")
-
-# ====== Save Histogram of Output Distribution ======
-histogram_path = os.path.join(output_dir, "Histogram_distribution.png")
-plt.figure(figsize=(8, 5))
-sns.histplot(df_train[output_column], bins=3, kde=True)
-plt.title("Distribution of Output")
-plt.xlabel(output_column)
-plt.savefig(histogram_path)
-plt.close()
-log_and_print(f"Output distribution histogram saved to {histogram_path}")
 
 # ====== Prepare Final Training Data ======
 # Now that we've cleaned only the columns we need:
@@ -292,185 +285,225 @@ mse = mean_squared_error(y_test, y_pred)
 r2 = r2_score(y_test, y_pred)
 
 
-# ====== Residual Plots ======
+# ====== Plots ======
+
+# ====== Correlation & Basic Exploration ======
+
 # Compute residuals
 residuals = y_test - y_pred
 
-# Residual Plot: Predicted vs. Residuals
-residual_plot_path = os.path.join(output_dir, "residual_plot.png")
+# Only for numeric columns in the selected subset
+numeric_corr = df_train.select_dtypes(include=[np.number]).corr()
+logging.info(f"\nCorrelation Matrix:\n{numeric_corr}")
+
+# ====== Save Feature Correlation Heatmap (Selected Columns Only) ======
+if selected_graphs is None or "Heatmap" in selected_graphs:
+    heatmap_path = os.path.join(output_dir, "heatmap.png")
+    plt.figure(figsize=(10, 6))
+    sns.heatmap(numeric_corr, annot=True, cmap="coolwarm")
+    plt.title("Feature Correlation Heatmap")
+    plt.savefig(heatmap_path)
+    plt.close()
+    log_and_print(f"Feature correlation heatmap saved to {heatmap_path}")
+
+# ====== Save Histogram of Output Distribution ======
+if selected_graphs is None or "Histogram Distribution" in selected_graphs:
+    histogram_path = os.path.join(output_dir, "Histogram_distribution.png")
+    plt.figure(figsize=(8, 5))
+    sns.histplot(df_train[output_column], bins=3, kde=True)
+    plt.title("Distribution of Output")
+    plt.xlabel(output_column)
+    plt.savefig(histogram_path)
+    plt.close()
+    log_and_print(f"Output distribution histogram saved to {histogram_path}")
+
+
+# this is for residual and reuse
 plt.figure(figsize=(8, 6))
 sns.scatterplot(x=y_pred, y=residuals)
 plt.axhline(0, color='red', linestyle='--')
-plt.xlabel("Predicted Values")
-plt.ylabel("Residuals")
-plt.title("Residual Plot")
-plt.savefig(residual_plot_path)
-plt.close()
-log_and_print(f"Residual Plot saved to {residual_plot_path}")
+
+# Residual Plot: Predicted vs. Residuals
+if selected_graphs is None or "Residual Plot" in selected_graphs:
+    residual_plot_path = os.path.join(output_dir, "residual_plot.png")
+    plt.xlabel("Predicted Values")
+    plt.ylabel("Residuals")
+    plt.title("Residual Plot")
+    plt.savefig(residual_plot_path)
+    plt.close()
+    log_and_print(f"Residual Plot saved to {residual_plot_path}")
 
 # Histogram of Residuals
-hist_resid_path = os.path.join(output_dir, "histogram_residuals.png")
-plt.figure(figsize=(8, 6))
-sns.histplot(residuals, bins=30, kde=True)
-plt.xlabel("Residuals")
-plt.title("Histogram of Residuals")
-plt.savefig(hist_resid_path)
-plt.close()
-log_and_print(f"Histogram of Residuals saved to {hist_resid_path}")
+if selected_graphs is None or "Histogram Residuals" in selected_graphs:
+    hist_resid_path = os.path.join(output_dir, "histogram_residuals.png")
+    plt.figure(figsize=(8, 6))
+    sns.histplot(residuals, bins=30, kde=True)
+    plt.xlabel("Residuals")
+    plt.title("Histogram of Residuals")
+    plt.savefig(hist_resid_path)
+    plt.close()
+    log_and_print(f"Histogram of Residuals saved to {hist_resid_path}")
 
-# ----- Weight Plot (Coefficient Plot) -----
+
 weight_plot_path = os.path.join(output_dir, "weight_plot.png")
 plt.figure(figsize=(10, 6))
 
-
 # ----- Model Coefficients Plot (Weight Plot) -----
-coefficients = model.coef_
-features = existing_train_columns
-weight_plot_path = os.path.join(output_dir, "model_coefficients.png")
-plt.figure(figsize=(10, 6))
-plt.bar(features, coefficients, color='steelblue')
-plt.xticks(rotation=90)
-plt.xlabel("Feature")
-plt.ylabel("Coefficient Value")
-plt.title("Model Coefficients")
-plt.tight_layout()
-plt.savefig(weight_plot_path)
-plt.close()
-log_and_print(f"Model Coefficients plot saved to {weight_plot_path}")
+if selected_graphs is None or "Model Coefficients" in selected_graphs:
+    # ----- Weight Plot (Coefficient Plot) -----
+    
+    coefficients = model.coef_
+    features = existing_train_columns
+    weight_plot_path = os.path.join(output_dir, "model_coefficients.png")
+    plt.figure(figsize=(10, 6))
+    plt.bar(features, coefficients, color='steelblue')
+    plt.xticks(rotation=90)
+    plt.xlabel("Feature")
+    plt.ylabel("Coefficient Value")
+    plt.title("Model Coefficients")
+    plt.tight_layout()
+    plt.savefig(weight_plot_path)
+    plt.close()
+    log_and_print(f"Model Coefficients plot saved to {weight_plot_path}")
 
 # ----- Effect Plot for a Selected Feature -----
 # (Also known as a Partial Dependence or Effect Plot)
-selected_feature = existing_train_columns[0]
-if np.issubdtype(df_train[selected_feature].dtype, np.number):
-    effect_plot_path = os.path.join(output_dir, "effect_plot.png")
+if selected_graphs is None or "Effect Plot" in selected_graphs:
+    selected_feature = existing_train_columns[0]
+    if np.issubdtype(df_train[selected_feature].dtype, np.number):
+        effect_plot_path = os.path.join(output_dir, "effect_plot.png")
     
-    # Create a range for the selected feature
-    x_vals = np.linspace(df_train[selected_feature].min(), df_train[selected_feature].max(), 100)
+        # Create a range for the selected feature
+        x_vals = np.linspace(df_train[selected_feature].min(), df_train[selected_feature].max(), 100)
     
-    # Create a baseline vector (mean for each feature) using the training set
-    baseline = X_train.mean(axis=0)
-    X_effect = np.tile(baseline, (100, 1))
+        # Create a baseline vector (mean for each feature) using the training set
+        baseline = X_train.mean(axis=0)
+        X_effect = np.tile(baseline, (100, 1))
     
-    # Replace the column corresponding to the selected feature with the range of values
-    idx = existing_train_columns.index(selected_feature)
-    X_effect[:, idx] = x_vals
+        # Replace the column corresponding to the selected feature with the range of values
+        idx = existing_train_columns.index(selected_feature)
+        X_effect[:, idx] = x_vals
     
-    # Scale the effect array using the same scaler
-    X_effect_scaled = scaler.transform(X_effect)
-    # Predict using the trained model
-    y_effect = model.predict(X_effect_scaled)
+        # Scale the effect array using the same scaler
+        X_effect_scaled = scaler.transform(X_effect)
+        # Predict using the trained model
+        y_effect = model.predict(X_effect_scaled)
     
-    plt.figure(figsize=(8, 6))
-    plt.plot(x_vals, y_effect, color='darkorange', lw=2)
-    plt.xlabel(f"{selected_feature}")
-    plt.ylabel(f"Predicted {output_column}")
-    plt.title(f"Effect of {selected_feature} on {output_column}")
-    plt.tight_layout()
-    plt.savefig(effect_plot_path)
-    plt.close()
-    log_and_print(f"Effect Plot for {selected_feature} saved to {effect_plot_path}")
-else:
-    log_and_print(f"Selected feature '{selected_feature}' is not numeric. Skipping Effect Plot.")
+        plt.figure(figsize=(8, 6))
+        plt.plot(x_vals, y_effect, color='darkorange', lw=2)
+        plt.xlabel(f"{selected_feature}")
+        plt.ylabel(f"Predicted {output_column}")
+        plt.title(f"Effect of {selected_feature} on {output_column}")
+        plt.tight_layout()
+        plt.savefig(effect_plot_path)
+        plt.close()
+        log_and_print(f"Effect Plot for {selected_feature} saved to {effect_plot_path}")
+    else:
+        log_and_print(f"Selected feature '{selected_feature}' is not numeric. Skipping Effect Plot.")
 
 
 
 # ----- Mean Effect Plot -----
-selected_feature = existing_train_columns[0]
-# Create bins for the selected feature (using original, unscaled values)
-feature_vals = df_train[selected_feature]
-bins = np.linspace(feature_vals.min(), feature_vals.max(), 20)
-bin_indices = np.digitize(feature_vals, bins)
-mean_effect = []
-bin_centers = []
-for b in np.unique(bin_indices):
-    # Compute the center of the bin
-    bin_center = bins[b-1] + (bins[1]-bins[0]) / 2
-    bin_centers.append(bin_center)
-    # Create a baseline vector from X_train (mean values)
-    baseline = X_train.mean(axis=0)
-    X_effect = np.tile(baseline, (1, 1))
-    idx = existing_train_columns.index(selected_feature)
-    X_effect[0, idx] = bin_center
-    X_effect_df = pd.DataFrame(X_effect, columns=existing_train_columns)
-    X_effect_scaled = scaler.transform(X_effect_df)
-    y_eff = model.predict(X_effect_scaled)
-    mean_effect.append(y_eff[0])
+if selected_graphs is None or "Mean Effect Plot" in selected_graphs:
+    selected_feature = existing_train_columns[0]
+    # Create bins for the selected feature (using original, unscaled values)
+    feature_vals = df_train[selected_feature]
+    bins = np.linspace(feature_vals.min(), feature_vals.max(), 20)
+    bin_indices = np.digitize(feature_vals, bins)
+    mean_effect = []
+    bin_centers = []
+    for b in np.unique(bin_indices):
+        # Compute the center of the bin
+        bin_center = bins[b-1] + (bins[1]-bins[0]) / 2
+        bin_centers.append(bin_center)
+        # Create a baseline vector from X_train (mean values)
+        baseline = X_train.mean(axis=0)
+        X_effect = np.tile(baseline, (1, 1))
+        idx = existing_train_columns.index(selected_feature)
+        X_effect[0, idx] = bin_center
+        X_effect_df = pd.DataFrame(X_effect, columns=existing_train_columns)
+        X_effect_scaled = scaler.transform(X_effect_df)
+        y_eff = model.predict(X_effect_scaled)
+        mean_effect.append(y_eff[0])
 
-mean_effect_plot_path = os.path.join(output_dir, "mean_effect_plot.png")
-plt.figure(figsize=(8,6))
-plt.plot(bin_centers, mean_effect, marker='o', linestyle='-')
-plt.xlabel(selected_feature)
-plt.ylabel(f"Mean Predicted {output_column}")
-plt.title(f"Mean Effect Plot for {selected_feature}")
-plt.tight_layout()
-plt.savefig(mean_effect_plot_path)
-plt.close()
-log_and_print(f"Mean Effect Plot saved to {mean_effect_plot_path}")
+    mean_effect_plot_path = os.path.join(output_dir, "mean_effect_plot.png")
+    plt.figure(figsize=(8,6))
+    plt.plot(bin_centers, mean_effect, marker='o', linestyle='-')
+    plt.xlabel(selected_feature)
+    plt.ylabel(f"Mean Predicted {output_column}")
+    plt.title(f"Mean Effect Plot for {selected_feature}")
+    plt.tight_layout()
+    plt.savefig(mean_effect_plot_path)
+    plt.close()
+    log_and_print(f"Mean Effect Plot saved to {mean_effect_plot_path}")
 
 
 
 # ----- Individual Effect Plot -----
-# Generate predictions on the full cleaned training set
-X_train_full_scaled = scaler.transform(X_train)  # X_train from df_train (full set)
-y_pred_full = model.predict(X_train_full_scaled)
+if selected_graphs is None or "Individual Effect Plot" in selected_graphs:
+    # Generate predictions on the full cleaned training set
+    X_train_full_scaled = scaler.transform(X_train)  # X_train from df_train (full set)
+    y_pred_full = model.predict(X_train_full_scaled)
 
-plt.figure(figsize=(8,6))
-plt.scatter(df_train[selected_feature].values, y_pred_full, alpha=0.5)
-plt.xlabel(selected_feature)
-plt.ylabel(f"Predicted {output_column}")
-plt.title(f"Individual Effect Plot for {selected_feature}")
-plt.tight_layout()
-individual_effect_plot_path = os.path.join(output_dir, "individual_effect_plot.png")
-plt.savefig(individual_effect_plot_path)
-plt.close()
-log_and_print(f"Individual Effect Plot saved to {individual_effect_plot_path}")
+    plt.figure(figsize=(8,6))
+    plt.scatter(df_train[selected_feature].values, y_pred_full, alpha=0.5)
+    plt.xlabel(selected_feature)
+    plt.ylabel(f"Predicted {output_column}")
+    plt.title(f"Individual Effect Plot for {selected_feature}")
+    plt.tight_layout()
+    individual_effect_plot_path = os.path.join(output_dir, "individual_effect_plot.png")
+    plt.savefig(individual_effect_plot_path)
+    plt.close()
+    log_and_print(f"Individual Effect Plot saved to {individual_effect_plot_path}")
 
 
 
 
 # ----- Trend Effect Plot -----
-selected_feature = existing_train_columns[0]
-# Sort instances by the selected feature using the full training set (df_train)
-sorted_indices = np.argsort(df_train[selected_feature].values)
-sorted_feature = df_train[selected_feature].values[sorted_indices]
-# Use the full training set predictions for plotting
-sorted_predictions = model.predict(X_train_full_scaled)[sorted_indices]
+if selected_graphs is None or "Trend Effect Plot" in selected_graphs:
+    selected_feature = existing_train_columns[0]
+    # Sort instances by the selected feature using the full training set (df_train)
+    sorted_indices = np.argsort(df_train[selected_feature].values)
+    sorted_feature = df_train[selected_feature].values[sorted_indices]
+    # Use the full training set predictions for plotting
+    sorted_predictions = model.predict(X_train_full_scaled)[sorted_indices]
 
-trend_effect_plot_path = os.path.join(output_dir, "trend_effect_plot.png")
-plt.figure(figsize=(8,6))
-plt.plot(sorted_feature, sorted_predictions, color='purple', lw=2)
-plt.xlabel(selected_feature)
-plt.ylabel(f"Predicted {output_column}")
-plt.title(f"Trend Effect Plot for {selected_feature}")
-plt.tight_layout()
-plt.savefig(trend_effect_plot_path)
-plt.close()
-log_and_print(f"Trend Effect Plot saved to {trend_effect_plot_path}")
+    trend_effect_plot_path = os.path.join(output_dir, "trend_effect_plot.png")
+    plt.figure(figsize=(8,6))
+    plt.plot(sorted_feature, sorted_predictions, color='purple', lw=2)
+    plt.xlabel(selected_feature)
+    plt.ylabel(f"Predicted {output_column}")
+    plt.title(f"Trend Effect Plot for {selected_feature}")
+    plt.tight_layout()
+    plt.savefig(trend_effect_plot_path)
+    plt.close()
+    log_and_print(f"Trend Effect Plot saved to {trend_effect_plot_path}")
 
 
 
 
 # ----- SHAP Summary Plot for Linear Model -----
-try:
-    import shap
-except ImportError:
-    log_and_print("SHAP library not installed. Installing now...")
-    run_command("python -m pip install shap")
-    import shap
+if selected_graphs is None or "Shap Summary Plot" in selected_graphs:
+    try:
+        import shap
+    except ImportError:
+        log_and_print("SHAP library not installed. Installing now...")
+        run_command("python -m pip install shap")
+        import shap
 
-# Use a linear explainer for your model. For linear models, the exact method is efficient.
-explainer = shap.LinearExplainer(model, X_train_scaled, feature_perturbation="interventional")
-shap_values = explainer.shap_values(X_train_scaled)
+    # Use a linear explainer for your model (without the deprecated feature_perturbation parameter)
+    explainer = shap.LinearExplainer(model, X_train_scaled)
+    shap_values = explainer.shap_values(X_train_scaled)
 
-shap_summary_plot_path = os.path.join(output_dir, "shap_summary_plot.png")
-plt.figure()
-# After computing SHAP values on the scaled training data:
-X_shap = pd.DataFrame(X_train_scaled, columns=existing_train_columns)
-shap.summary_plot(shap_values, X_shap, feature_names=existing_train_columns, show=False)
-plt.title("SHAP Summary Plot")
-plt.savefig(shap_summary_plot_path, bbox_inches="tight")
-plt.close()
-log_and_print(f"SHAP Summary Plot saved to {shap_summary_plot_path}")
+    shap_summary_plot_path = os.path.join(output_dir, "shap_summary_plot.png")
+    plt.figure()
+    # Create a DataFrame for the scaled training data using your existing_train_columns
+    X_shap = pd.DataFrame(X_train_scaled, columns=existing_train_columns)
+    shap.summary_plot(shap_values, X_shap, feature_names=existing_train_columns, show=False)
+    plt.title("SHAP Summary Plot")
+    plt.savefig(shap_summary_plot_path, bbox_inches="tight")
+    plt.close()
+    log_and_print(f"SHAP Summary Plot saved to {shap_summary_plot_path}")
 
 
 
