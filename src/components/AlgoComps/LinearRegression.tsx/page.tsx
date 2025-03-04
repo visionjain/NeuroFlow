@@ -41,6 +41,24 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
     const [winsorLower, setWinsorLower] = useState(1);
     const [winsorUpper, setWinsorUpper] = useState(99);
     const [encodingMethod, setEncodingMethod] = useState("one-hot");
+    const [selectedExplorations, setSelectedExplorations] = useState<string[]>([]);
+
+
+
+    const availableExplorations = [
+        "First 5 Rows",
+        "Last 5 Rows",
+        "Dataset Shape",
+        "Data Types",
+        "Summary Statistics",
+        "Missing Values",
+        "Unique Values Per Column",
+        "Duplicate Rows",
+        "Min & Max Values",
+        "Correlation Matrix",
+        "Skewness",
+        "Target Column Distribution"
+    ];
 
 
     const availableGraphs = [
@@ -110,6 +128,22 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
             } else if (type === "Test") {
                 setTestFile(fileName);
             }
+        }
+    };
+
+    // Toggle individual selection
+    const toggleExploration = (technique: string) => {
+        setSelectedExplorations((prev) =>
+            prev.includes(technique) ? prev.filter((item) => item !== technique) : [...prev, technique]
+        );
+    };
+
+    // Select all / Deselect all
+    const toggleSelectAllExplorations = () => {
+        if (selectedExplorations.length === availableExplorations.length) {
+            setSelectedExplorations([]); // Deselect all
+        } else {
+            setSelectedExplorations(availableExplorations); // Select all
         }
     };
 
@@ -218,6 +252,7 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
             selected_missingval_tech: JSON.stringify(selectedHandlingMissingValue),
             remove_Duplicates: JSON.stringify(removeDuplicates),
             encoding_Method: encodingMethod,
+            available_Explorations: JSON.stringify(selectedExplorations),
 
             // Outlier Detection Parameters
             enable_outlier_detection: JSON.stringify(enableOutlierDetection),
@@ -708,6 +743,7 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
                                                             <SelectValue placeholder="Select Encoding Method" />
                                                         </SelectTrigger>
                                                         <SelectContent>
+                                                            <SelectItem value="none">None (Use Only Numeric Columns)</SelectItem>
                                                             <SelectItem value="one-hot">One-Hot Encoding</SelectItem>
                                                             <SelectItem value="label">Label Encoding</SelectItem>
                                                             <SelectItem value="target">Target Encoding</SelectItem>
@@ -729,7 +765,39 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
 
 
 
-                                    <div className="dark:bg-[#212628] h-52 rounded-xl w-1/3 bg-white"></div>
+
+                                    <div className="dark:bg-[#212628] h-52 rounded-xl w-1/3 bg-white p-2">
+                                        <div className="flex items-center justify-between mb-1 mt-1">
+                                            <div className="font-semibold text-sm">Select Data Exploration Techniques</div>
+                                            <div className="flex items-center">
+                                                <Checkbox
+                                                    checked={selectedExplorations.length === availableExplorations.length}
+                                                    onCheckedChange={toggleSelectAllExplorations}
+                                                />
+                                                <span className="ml-2 text-xs">Select All</span>
+                                            </div>
+                                        </div>
+                                        <div className="dark:bg-[#0E0E0E] bg-[#E6E6E6] h-40 p-3 rounded-xl overflow-auto">
+                                            <div>
+                                                {trainFile ? (
+                                                    <div className="grid grid-cols-2 gap-1">
+                                                        {availableExplorations.map((technique) => (
+                                                            <div key={technique} className="flex items-center text-xs">
+                                                                <Checkbox
+                                                                    checked={selectedExplorations.includes(technique)}
+                                                                    onCheckedChange={() => toggleExploration(technique)}
+                                                                />
+                                                                <span className="ml-1">{technique}</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                ) : (
+                                                    <div className="text-center">Please select a train file to enable data exploration selection.</div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+
                                     <div className="dark:bg-[#212628] h-52 rounded-xl w-1/3 bg-white"></div>
                                 </div>
                             </div>

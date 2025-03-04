@@ -17,6 +17,7 @@ export async function GET(req: NextRequest) {
     const selected_missingval_tech = searchParams.get("selected_missingval_tech");
     const remove_Duplicates = searchParams.get("remove_Duplicates") === "true";
     const encoding_method = searchParams.get("encoding_Method");
+
     // Outlier Detection Parameters
     const enable_outlier_detection = searchParams.get("enable_outlier_detection") === "true";
     const outlier_method = searchParams.get("outlier_method");
@@ -25,6 +26,9 @@ export async function GET(req: NextRequest) {
     const iqr_upper = searchParams.get("iqr_upper");
     const winsor_lower = searchParams.get("winsor_lower");
     const winsor_upper = searchParams.get("winsor_upper");
+
+    // ✅ New: Get selected data exploration techniques
+    const selected_explorations = searchParams.get("available_Explorations");
 
     if (!train_csv_path) {
       return new Response("Missing required parameter: train_csv_path", { status: 400 });
@@ -66,7 +70,12 @@ export async function GET(req: NextRequest) {
 
     if (encoding_method) {
       args.push("--encoding_type", encoding_method);
-  }
+    }
+
+    // ✅ New: Add selected data exploration techniques
+    if (selected_explorations) {
+      args.push("--selected_explorations", selected_explorations);
+    }
 
     // Add Outlier Detection Parameters if enabled
     if (enable_outlier_detection) {

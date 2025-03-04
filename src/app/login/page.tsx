@@ -118,7 +118,7 @@ export default function LoginPage() {
           <Card className="w-[350px] border-[rgb(61,68,77)] dark:bg-[#212628]">
             <CardHeader className='flex items-center justify-center'>
               <CardTitle className='text-lg'>Log in</CardTitle>
-              <CardDescription>Welcome to Lecturify</CardDescription>
+              <CardDescription>Welcome to NeuroFlow</CardDescription>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSignIn}>

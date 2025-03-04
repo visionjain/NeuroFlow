@@ -4,6 +4,7 @@ import ast
 import os
 import argparse
 import logging
+import json
 
 
 
@@ -96,7 +97,8 @@ parser.add_argument("--output_column", required=True, help="Name of the target o
 parser.add_argument("--selected_graphs", required=False, help="Comma-separated list of graph filenames to generate (optional)")
 parser.add_argument("--selected_missingval_tech", required=True, help="Selected missing value handling technique")
 parser.add_argument("--remove_duplicates", action="store_true", help="Remove duplicate rows from the dataset")
-parser.add_argument("--encoding_type", required=True, choices=["one-hot", "label", "target"], help="Encoding type for categorical variables")
+parser.add_argument("--encoding_type", required=True, choices=["one-hot", "label", "target", "none"], help="Encoding type for categorical variables")
+parser.add_argument("--selected_explorations", type=str, default="[]")  # Default empty list
 
 # Outlier Handling Arguments
 parser.add_argument("--enable_outlier_detection", type=str, help="Enable outlier detection (true/false)", default="false")
@@ -117,6 +119,8 @@ selected_missingval_tech = args.selected_missingval_tech.strip('"')  # Clean ext
 # This will be refined via ast.literal_eval further below
 train_columns = args.train_columns.split(",")  
 output_column = args.output_column
+# Convert JSON string back to Python list
+selected_explorations = json.loads(args.selected_explorations)
 
 
 # Process selected_graphs argument into a list (if provided)
@@ -194,17 +198,73 @@ log_and_print(f"Dataset Loaded Successfully! Shape: {df_train_original.shape}")
 
 
 
-# ========== Data Exploration ==========
 
-logging.info("========== Data Cleaning & Exploration ==========")
-logging.info(f"\nFirst 5 rows:\n{df_train_original.head()}")
-logging.info(f"\nData Summary:\n{df_train_original.describe()}")
-logging.info(f"\nMissing Values:\n{df_train_original.isnull().sum()}")
+# ========== Data Exploration ==========
+logging.info("========== Data Exploration ==========")
+
+# Display first few rows
+if "First 5 Rows" in selected_explorations:
+    logging.info(f"\n📌 First 5 rows:\n{df_train_original.head()}")
+
+if "Last 5 Rows" in selected_explorations:
+    logging.info(f"\n📌 Last 5 rows:\n{df_train_original.tail()}")
+
+# Dataset Shape
+if "Dataset Shape" in selected_explorations:
+    logging.info(f"\n📏 Dataset Shape: {df_train_original.shape} (Rows: {df_train_original.shape[0]}, Columns: {df_train_original.shape[1]})")
+
+# Data Types
+if "Data Types" in selected_explorations:
+    logging.info(f"\n📊 Data Types:\n{df_train_original.dtypes}")
+
+# Summary Statistics (including categorical)
+if "Summary Statistics" in selected_explorations:
+    logging.info(f"\n📈 Summary Statistics:\n{df_train_original.describe(include='all')}")
+
+# Missing Values
+if "Missing Values" in selected_explorations:
+    missing_values = df_train_original.isnull().sum()
+    missing_values = missing_values[missing_values > 0]
+    logging.info(f"\n🚨 Missing Values:\n{missing_values if not missing_values.empty else 'No missing values found.'}")
+
+# Unique Values in Each Column
+if "Unique Values Per Column" in selected_explorations:
+    unique_values = df_train_original.nunique()
+    logging.info(f"\n🔢 Unique Values Per Column:\n{unique_values}")
+
+# Checking for duplicate rows
+if "Duplicate Rows" in selected_explorations:
+    duplicate_rows = df_train_original.duplicated().sum()
+    logging.info(f"\n🔄 Duplicate Rows: {duplicate_rows}")
+
+# Min & Max Values for Each Numeric Column
+numeric_cols = df_train_original.select_dtypes(include=[np.number]).columns
+if "Min & Max Values" in selected_explorations and not numeric_cols.empty:
+    min_max_values = df_train_original[numeric_cols].agg(["min", "max"])
+    logging.info(f"\n📌 Min & Max Values:\n{min_max_values}")
+
+# Correlation Matrix (Numerical Features)
+if "Correlation Matrix" in selected_explorations and len(numeric_cols) > 1:
+    numeric_corr = df_train_original[numeric_cols].corr()
+    logging.info(f"\n🔗 Correlation Matrix:\n{numeric_corr}")
+
+# Skewness of numerical columns
+if "Skewness" in selected_explorations and not numeric_cols.empty:
+    skewness = df_train_original[numeric_cols].skew()
+    logging.info(f"\n⚠️ Skewness of Numerical Features:\n{skewness}")
+
+# Checking class imbalance (if target column exists)
+if "Target Column Distribution" in selected_explorations and output_column in df_train_original.columns:
+    class_distribution = df_train_original[output_column].value_counts()
+    logging.info(f"\n📊 Target Column Distribution:\n{class_distribution}")
+
+logging.info("✅ Data Exploration Completed.")
 
 
 
 
 # ========== Data Cleaning ==========
+logging.info("========== Data Cleaning ==========")
 # Ensure train_columns is a proper list (especially if passed as a string)
 try:
     # Try to evaluate the argument as a Python literal
@@ -333,6 +393,17 @@ elif args.encoding_type.lower() == "target":
         df_train[col] = df_train[col].map(target_means[col])
     
     logging.info("Categorical columns converted using Target Encoding.")
+
+elif args.encoding_type.lower() == "none":
+    skipped_categorical_cols = df_train.select_dtypes(exclude=[np.number]).columns.tolist()
+
+    if skipped_categorical_cols:
+        logging.info(f"Skipping categorical encoding. Using only numeric features. "
+                     f"Skipped columns: {skipped_categorical_cols}")
+    else:
+        logging.info("No categorical columns found. Proceeding with only numeric features.")
+
+    df_train = df_train.select_dtypes(include=[np.number])
 
 else:
     logging.error(f"Invalid encoding method: {args.encoding_type}. Supported: 'one-hot', 'label', 'target'")
@@ -537,6 +608,16 @@ if df_test_original is not None:
 
         logging.info("Test Set: Categorical columns converted using Target Encoding.")
 
+    elif args.encoding_type.lower() == "none":
+        skipped_categorical_cols = df_test.select_dtypes(exclude=[np.number]).columns.tolist()
+
+        if skipped_categorical_cols:
+            logging.info(f"Skipping categorical encoding. Using only numeric features. "
+                         f"Skipped columns: {skipped_categorical_cols}")
+        else:
+            logging.info("No categorical columns found. Proceeding with only numeric features.")
+
+        df_test = df_test.select_dtypes(include=[np.number])
 
     # Reindex test DataFrame to match training DataFrame columns
     df_test = df_test.reindex(columns=df_train.columns, fill_value=0)
@@ -598,6 +679,7 @@ r2 = r2_score(y_test, y_pred)
 # Compute residuals
 residuals = y_test - y_pred
 
+# ====== Correlation Matrix ======
 # Only for numeric columns in the selected subset
 numeric_corr = df_train.select_dtypes(include=[np.number]).corr()
 logging.info(f"\nCorrelation Matrix:\n{numeric_corr}")

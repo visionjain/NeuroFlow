@@ -128,7 +128,7 @@ const SignupU = () => {
           <Card className="w-[350px] border-[rgb(61,68,77)] dark:bg-[#212628]">
             <CardHeader className='flex items-center justify-center'>
               <CardTitle className='text-lg'>User Signup</CardTitle>
-              <CardDescription>Welcome to Turfify</CardDescription>
+              <CardDescription>Welcome to NeuroFlow</CardDescription>
             </CardHeader>
             <CardContent>
               <form>
