@@ -109,6 +109,9 @@ parser.add_argument("--iqr_upper", type=float, help="Multiplier for upper bound 
 parser.add_argument("--winsor_lower", type=int, help="Lower percentile for Winsorization", default=1)
 parser.add_argument("--winsor_upper", type=int, help="Upper percentile for Winsorization", default=99)
 
+# ✅ Feature Scaling
+parser.add_argument("--feature_scaling", type=str, help="Selected feature scaling method")
+
 
 args = parser.parse_args()
 
@@ -122,6 +125,8 @@ output_column = args.output_column
 # Convert JSON string back to Python list
 selected_explorations = json.loads(args.selected_explorations)
 
+# ✅ Process Feature Scaling
+feature_scaling = args.feature_scaling if args.feature_scaling else None
 
 # Process selected_graphs argument into a list (if provided)
 selected_graphs = None
@@ -262,19 +267,16 @@ logging.info("✅ Data Exploration Completed.")
 
 
 
-
-# ========== Data Cleaning ==========
+# ========== TRAIN DATA PROCESSING ==========
 logging.info("========== Data Cleaning ==========")
 # Ensure train_columns is a proper list (especially if passed as a string)
 try:
-    # Try to evaluate the argument as a Python literal
     const_columns = ast.literal_eval(args.train_columns)
     if isinstance(const_columns, list):
         train_columns = [col.strip() for col in const_columns]
     else:
         raise ValueError("Parsed train_columns is not a list.")
 except Exception as e:
-    # If evaluation fails, split by comma
     train_columns = [col.strip() for col in args.train_columns.split(",")]
 
 # Select only the required columns
@@ -298,7 +300,7 @@ elif selected_missingval_tech == "Mode Imputation":
     for col in numeric_cols:
         df_train[col] = df_train[col].fillna(df_train[col].mode()[0])
     for col in non_numeric_cols:
-        df_train[col] = df_train[col].fillna(df_train[col].mode()[0])  
+        df_train[col] = df_train[col].fillna(df_train[col].mode()[0])
     logging.info("Missing values filled using Mode Imputation.")
 elif selected_missingval_tech == "Forward/Backward Fill":
     df_train.ffill(inplace=True)
@@ -314,7 +316,6 @@ else:
     sys.exit(1)
 
 # ========== Remove Duplicates ==========
-# Apply Remove Duplicates only if the flag is passed
 if args.remove_duplicates:
     before_rows = df_train.shape[0]
     df_train.drop_duplicates(inplace=True)
@@ -325,13 +326,9 @@ if args.remove_duplicates:
 if args.enable_outlier_detection.lower() == "true":
     numeric_cols = df_train.select_dtypes(include=[np.number]).columns
     logging.info(f"🛠️ Outlier removal enabled using method: {args.outlier_method}")
-
-    # Normalize method string
     method = str(args.outlier_method).strip().lower().strip('"').strip("'")
-
     if method == "z-score":
         logging.info(f"🔹 Applying Z-score method (threshold={args.z_score_threshold})...")
-
         if len(numeric_cols) == 0:
             logging.warning("⚠️ No numeric columns found. Skipping Z-score outlier removal.")
         else:
@@ -341,9 +338,8 @@ if args.enable_outlier_detection.lower() == "true":
                 logging.info(f"✅ Outliers removed using Z-score method. New shape: {df_train.shape}")
             except Exception as e:
                 logging.error(f"⚠️ Error in Z-score computation: {e}")
-
     elif method == "iqr":
-        logging.info(f"🔹 Applying IQR method...")
+        logging.info("🔹 Applying IQR method...")
         Q1 = df_train[numeric_cols].quantile(0.25)
         Q3 = df_train[numeric_cols].quantile(0.75)
         IQR = Q3 - Q1
@@ -351,62 +347,65 @@ if args.enable_outlier_detection.lower() == "true":
         upper_bound = Q3 + (args.iqr_upper * IQR)
         df_train = df_train[~((df_train[numeric_cols] < lower_bound) | (df_train[numeric_cols] > upper_bound)).any(axis=1)]
         logging.info(f"✅ Outliers removed using IQR method. New shape: {df_train.shape}")
-
     elif method == "winsorization":
-        logging.info(f"🔹 Applying Winsorization...")
+        logging.info("🔹 Applying Winsorization...")
         from scipy.stats.mstats import winsorize
         for col in numeric_cols:
             df_train[col] = winsorize(df_train[col], limits=(args.winsor_lower / 100, (100 - args.winsor_upper) / 100))
-        logging.info(f"✅ Outliers capped using Winsorization.")
-
+        logging.info("✅ Outliers capped using Winsorization.")
 else:
     logging.info("⚠️ Outlier removal is disabled. Skipping outlier detection.")
+
+# ========== Feature Scaling ==========
+from sklearn.preprocessing import MinMaxScaler, StandardScaler, RobustScaler
+if feature_scaling:
+    logging.info(f"✅ Applying Feature Scaling: {feature_scaling}")
+    scaler = None
+    if feature_scaling == "Min-Max Scaling":
+        scaler = MinMaxScaler()
+    elif feature_scaling == "Standard Scaling (Z-score Normalization)":
+        scaler = StandardScaler()
+    elif feature_scaling == "Robust Scaling":
+        scaler = RobustScaler()
+    else:
+        logging.error(f"⚠️ Invalid Feature Scaling technique: {feature_scaling}")
+        sys.exit(1)
+    if scaler:
+        df_train[numeric_cols] = scaler.fit_transform(df_train[numeric_cols])
+        logging.info(f"✅ Feature Scaling applied using {feature_scaling}.")
+else:
+    logging.info(" -- No feature scaling selected. Skipping feature scaling. --")
 
 # ========== Convert Categorical Columns Based on Encoding Method ==========
 feature_cols = [col for col in df_train.columns if col != output_column]
 categorical_cols = [col for col in feature_cols if df_train[col].dtype == 'object']
-
 if args.encoding_type.lower() == "one-hot":
-    # One-Hot Encoding
     df_train = pd.get_dummies(df_train, columns=categorical_cols, drop_first=True)
     logging.info("Categorical columns converted using One-Hot Encoding.")
-
 elif args.encoding_type.lower() == "label":
-    # Label Encoding
-    from sklearn.preprocessing import LabelEncoder  # Ensure LabelEncoder is imported
-
+    from sklearn.preprocessing import LabelEncoder
     label_encoders = {}
     for col in categorical_cols:
         le = LabelEncoder()
         df_train[col] = le.fit_transform(df_train[col])
-        label_encoders[col] = le  # Store encoders if needed later
+        label_encoders[col] = le
     logging.info("Categorical columns converted using Label Encoding.")
-
-
 elif args.encoding_type.lower() == "target":
-    # Target Encoding
     from collections import defaultdict
     target_means = defaultdict(float)
-    
     for col in categorical_cols:
         target_means[col] = df_train.groupby(col)[output_column].mean()
         df_train[col] = df_train[col].map(target_means[col])
-    
     logging.info("Categorical columns converted using Target Encoding.")
-
 elif args.encoding_type.lower() == "none":
     skipped_categorical_cols = df_train.select_dtypes(exclude=[np.number]).columns.tolist()
-
     if skipped_categorical_cols:
-        logging.info(f"Skipping categorical encoding. Using only numeric features. "
-                     f"Skipped columns: {skipped_categorical_cols}")
+        logging.info(f"Skipping categorical encoding. Using only numeric features. Skipped columns: {skipped_categorical_cols}")
     else:
         logging.info("No categorical columns found. Proceeding with only numeric features.")
-
     df_train = df_train.select_dtypes(include=[np.number])
-
 else:
-    logging.error(f"Invalid encoding method: {args.encoding_type}. Supported: 'one-hot', 'label', 'target'")
+    logging.error(f"Invalid encoding method: {args.encoding_type}. Supported: 'one-hot', 'label', 'target', 'none'")
     sys.exit(1)
 
 logging.info("Training Data Cleaning Completed.")
@@ -417,58 +416,38 @@ print("\nData Cleaning & Exploration Done. Check logs for details.")
 
 
 
-
-
-
-
-# ====== Prepare Final Training Data ======
-
+# ========== Prepare Final Training Data ==========
 def get_existing_train_columns(selected_cols, df):
-    """
-    For each column in selected_cols, if it exists in df, use it.
-    Otherwise, look for any dummy-encoded columns that start with the original column name followed by an underscore.
-    """
     result = []
-    encoding_added_cols = {}  # Dictionary to track columns added due to encoding
-
+    encoding_added_cols = {}
     for col in selected_cols:
         if col in df.columns:
             result.append(col)
         else:
-            # Find all columns created via get_dummies for this categorical column
             dummy_cols = [c for c in df.columns if c.startswith(f"{col}_")]
             if dummy_cols:
-                encoding_added_cols[col] = dummy_cols  # Store them for logging
+                encoding_added_cols[col] = dummy_cols
             result.extend(dummy_cols)
-
     return result, encoding_added_cols
 
-# Get the final list of columns available for training
 existing_train_columns, encoding_added_cols = get_existing_train_columns(train_columns, df_train)
-
 if len(existing_train_columns) < len(train_columns):
-    log_and_print("Warning: Some specified train_columns were not found directly after cleaning. "
-                  "Using only existing columns (including dummy columns) among the selected subset.")
-
+    log_and_print("Warning: Some specified train_columns were not found directly after cleaning. Using only existing columns (including dummy columns) among the selected subset.")
 if not existing_train_columns:
     log_and_print("Error: No valid train columns remain after cleaning.")
     sys.exit(1)
-
-# Log added encoding columns separately
 if encoding_added_cols:
     for orig_col, new_cols in encoding_added_cols.items():
-    
         log_and_print(f"Encoding Notice: The column '{orig_col}' was encoded into {len(new_cols)} new columns: {new_cols}\n")
 
-# Subset the cleaned DataFrame using the final training columns and the output column
 X_train = df_train[existing_train_columns]
 y_train = df_train[output_column]
-
-log_and_print(f"Final train_columns: {existing_train_columns}")
-log_and_print(f"Available columns in dataset: {df_train.columns.tolist()}")
+logging.info(f"Final train_columns: {existing_train_columns}")
+logging.info(f"Available columns in dataset: {df_train.columns.tolist()}")
 
 scaler = StandardScaler()
 X_train_scaled = scaler.fit_transform(X_train)
+print("\nData Cleaning & Exploration Done. Check logs for details.")
 
 
 
@@ -478,30 +457,19 @@ X_train_scaled = scaler.fit_transform(X_train)
 
 
 
-
-# ====== If There's a Test Dataset ======
+# ========== TEST DATA PROCESSING ==========
 if df_test_original is not None:
     logging.info("Starting data cleaning for test dataset...")
-
-    # Strip whitespace from test dataset column names
     df_test_original.columns = df_test_original.columns.str.strip()
-
-    # Check that required columns exist in the test data
     missing_in_test = [col for col in all_needed_columns if col not in df_test_original.columns]
     if missing_in_test:
         logging.error(f"Error: The following columns are missing in the test dataset: {missing_in_test}")
         sys.exit(1)
-
-    # Subset to same columns as training
     df_test = df_test_original[all_needed_columns].copy()
-
-    # Identify numeric and non-numeric columns in test set
     numeric_cols_test = df_test.select_dtypes(include=[np.number]).columns
     non_numeric_cols_test = df_test.select_dtypes(exclude=[np.number]).columns
 
     logging.info("Applying missing value handling for test dataset (using train set statistics)...")
-
-    # ========== Handle Missing Values (Same as Training Set) ==========
     if selected_missingval_tech == "Mean Imputation":
         df_test[numeric_cols_test] = df_test[numeric_cols_test].fillna(df_train[numeric_cols].mean())
         logging.info("Test Set: Missing values in numeric columns filled using Mean Imputation (train mean).")
@@ -510,9 +478,9 @@ if df_test_original is not None:
         logging.info("Test Set: Missing values in numeric columns filled using Median Imputation (train median).")
     elif selected_missingval_tech == "Mode Imputation":
         for col in numeric_cols_test:
-            df_test[col] = df_test[col].fillna(df_train[col].mode()[0])  # ✅ FIXED
+            df_test[col] = df_test[col].fillna(df_train[col].mode()[0])
         for col in non_numeric_cols_test:
-            df_test[col] = df_test[col].fillna(df_train[col].mode()[0])  # ✅ FIXED
+            df_test[col] = df_test[col].fillna(df_train[col].mode()[0])
         logging.info("Test Set: Missing values filled using Mode Imputation (train mode).")
     elif selected_missingval_tech == "Forward/Backward Fill":
         df_test.ffill(inplace=True)
@@ -527,25 +495,18 @@ if df_test_original is not None:
         logging.error(f"Invalid missing value handling technique: {selected_missingval_tech}")
         sys.exit(1)
 
-    # ========== Remove Duplicates ==========
-    # Apply Remove Duplicates only if the flag is passed
     if args.remove_duplicates:
         before_rows = df_test.shape[0]
         df_test.drop_duplicates(inplace=True)
         after_rows = df_test.shape[0]
         logging.info(f"Test Set: Removed {before_rows - after_rows} duplicate rows.")
 
-    # ========== Outlier Removal for Test Data ==========
     if args.enable_outlier_detection.lower() == "true":
         numeric_cols_test = df_test.select_dtypes(include=[np.number]).columns
         logging.info(f"🛠️ Outlier removal enabled for test set using method: {args.outlier_method}")
-
-        # Normalize method string
         method = str(args.outlier_method).strip().lower().strip('"').strip("'")
-
         if method == "z-score":
             logging.info(f"🔹 Applying Z-score method to test set (threshold={args.z_score_threshold})...")
-
             if len(numeric_cols_test) == 0:
                 logging.warning("⚠️ No numeric columns found in test set. Skipping outlier removal.")
             else:
@@ -555,7 +516,6 @@ if df_test_original is not None:
                     logging.info(f"✅ Outliers removed using Z-score method in test set. New shape: {df_test.shape}")
                 except Exception as e:
                     logging.error(f"⚠️ Error in Z-score computation for test set: {e}")
-
         elif method == "iqr":
             logging.info("🔹 Applying IQR method to test set...")
             Q1 = df_test[numeric_cols_test].quantile(0.25)
@@ -565,25 +525,37 @@ if df_test_original is not None:
             upper_bound = Q3 + (args.iqr_upper * IQR)
             df_test = df_test[~((df_test[numeric_cols_test] < lower_bound) | (df_test[numeric_cols_test] > upper_bound)).any(axis=1)]
             logging.info(f"✅ Outliers removed using IQR method in test set. New shape: {df_test.shape}")
-
         elif method == "winsorization":
             logging.info("🔹 Applying Winsorization to test set...")
             from scipy.stats.mstats import winsorize
             for col in numeric_cols_test:
-                df_test[col] = winsorize(df_test[col], limits=(args.winsor_lower / 100, (100 - args.winsor_upper) / 100))
+                df_test[col] = winsorize(df_test[col], limits=(args.winsor_lower/100, (100-args.winsor_upper)/100))
             logging.info("✅ Outliers capped using Winsorization.")
-
     else:
         logging.info("⚠️ Outlier removal is disabled for test set. Skipping outlier detection.")
 
-    # ========== Encoding Categorical Columns ==========
-    logging.info("Applying categorical encoding for test dataset...")
+    if feature_scaling:
+        logging.info(f"✅ Applying Feature Scaling to Test Set: {feature_scaling}")
+        if scaler:
+            # Scale only the training features (existing_train_columns)
+            X_test = df_test[existing_train_columns]
+            X_test_scaled = scaler.transform(X_test)
+            logging.info(f"✅ Feature Scaling applied to test data using {feature_scaling}.")
+        else:
+            logging.warning("⚠️ No scaler available from training. Skipping scaling on test set.")
+    else:
+        logging.info(" -- No feature scaling selected for test set. Skipping feature scaling. --")
+    
+    X_test = df_test[existing_train_columns]
+    y_test = df_test[output_column]
+    X_test_scaled = scaler.transform(X_test)
+    logging.info("Test Data Cleaning Completed.")
 
+    logging.info("Applying categorical encoding for test dataset...")
     if args.encoding_type.lower() == "one-hot":
         test_feature_cols = [col for col in df_test.columns if col != output_column]
         df_test = pd.get_dummies(df_test, columns=[col for col in test_feature_cols if df_test[col].dtype == 'object'], drop_first=True)
         logging.info("Test Set: Categorical columns converted to dummy variables (one-hot encoding).")
-
     elif args.encoding_type.lower() == "label":
         from sklearn.preprocessing import LabelEncoder
         label_encoders_test = {}
@@ -595,45 +567,30 @@ if df_test_original is not None:
                 df_test[col] = le.fit_transform(df_test[col])
                 label_encoders_test[col] = le
         logging.info("Test Set: Categorical columns converted using Label Encoding.")
-
     elif args.encoding_type.lower() == "target":
-        if 'target_means' not in locals():  # Ensure mapping exists
+        if 'target_means' not in locals():
             logging.error("Target encoding failed: Train target means not found.")
             sys.exit(1)
-
-        # Apply the same mapping from training
         for col in non_numeric_cols_test:
             if col in target_means:
                 df_test[col] = df_test[col].map(target_means[col]).fillna(df_train[output_column].mean())
-
         logging.info("Test Set: Categorical columns converted using Target Encoding.")
-
     elif args.encoding_type.lower() == "none":
         skipped_categorical_cols = df_test.select_dtypes(exclude=[np.number]).columns.tolist()
-
         if skipped_categorical_cols:
-            logging.info(f"Skipping categorical encoding. Using only numeric features. "
-                         f"Skipped columns: {skipped_categorical_cols}")
+            logging.info(f"Skipping categorical encoding. Using only numeric features. Skipped columns: {skipped_categorical_cols}")
         else:
             logging.info("No categorical columns found. Proceeding with only numeric features.")
-
         df_test = df_test.select_dtypes(include=[np.number])
-
-    # Reindex test DataFrame to match training DataFrame columns
     df_test = df_test.reindex(columns=df_train.columns, fill_value=0)
-
-    # Now scale test set
-    X_test = df_test[existing_train_columns]
-    y_test = df_test[output_column]
-    X_test_scaled = scaler.transform(X_test)
+    
+    
 else:
     test_size = args.test_split_ratio if args.test_split_ratio else 0.2
-    X_train_scaled, X_test_scaled, y_train, y_test = train_test_split(X_train_scaled, y_train, test_size=test_size, random_state=42)
-
-logging.info("Test Data Cleaning Completed.")
-
-
-
+    X_train_scaled, X_test_scaled, y_train, y_test = train_test_split(
+        X_train_scaled, y_train, test_size=test_size, random_state=42
+    )
+    logging.info("Test Data Cleaning Completed via train_test_split.")
 
 
 

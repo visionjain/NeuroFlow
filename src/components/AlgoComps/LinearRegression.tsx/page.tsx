@@ -42,6 +42,19 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
     const [winsorUpper, setWinsorUpper] = useState(99);
     const [encodingMethod, setEncodingMethod] = useState("one-hot");
     const [selectedExplorations, setSelectedExplorations] = useState<string[]>([]);
+    const [selectedFeatureScaling, setSelectedFeatureScaling] = useState<string | null>(null);
+
+    const availableFeatureScaling = [
+        "Min-Max Scaling",
+        "Standard Scaling (Z-score Normalization)",
+        "Robust Scaling"
+    ];
+
+
+    // State for multi-choice section
+    const [selectedFeatureEngineering, setSelectedFeatureEngineering] = useState<string[]>([]);
+
+
 
 
 
@@ -274,7 +287,12 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
                 winsor_lower: JSON.stringify(winsorLower),
                 winsor_upper: JSON.stringify(winsorUpper),
             }),
+
+            // Feature Scaling (Single Selection)
+            feature_scaling: selectedFeatureScaling ? selectedFeatureScaling : "",
+
         });
+
 
 
         if (!testFile && testSplitRatio) {
@@ -551,6 +569,41 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
 
                                 {/* Second Row */}
                                 <div className="flex gap-x-3">
+
+
+                                    <div className="dark:bg-[#212628] h-52 rounded-xl w-1/3 bg-white p-2">
+                                        <div className="flex items-center justify-between mb-1 mt-1">
+                                            <div className="font-semibold text-sm">Select Data Exploration Techniques</div>
+                                            <div className="flex items-center">
+                                                <Checkbox
+                                                    checked={selectedExplorations.length === availableExplorations.length}
+                                                    onCheckedChange={toggleSelectAllExplorations}
+                                                />
+                                                <span className="ml-2 text-xs">Select All</span>
+                                            </div>
+                                        </div>
+                                        <div className="dark:bg-[#0E0E0E] bg-[#E6E6E6] h-40 p-3 rounded-xl overflow-auto">
+                                            <div>
+                                                {trainFile ? (
+                                                    <div className="grid grid-cols-2 gap-1">
+                                                        {availableExplorations.map((technique) => (
+                                                            <div key={technique} className="flex items-center text-xs">
+                                                                <Checkbox
+                                                                    checked={selectedExplorations.includes(technique)}
+                                                                    onCheckedChange={() => toggleExploration(technique)}
+                                                                />
+                                                                <span className="ml-1">{technique}</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                ) : (
+                                                    <div className="text-center">Please select a train file to enable data exploration selection.</div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+
+
                                     <div className="dark:bg-[#212628] h-52 rounded-xl w-1/3 bg-white p-2">
                                         <div className="flex items-center justify-between mb-1 mt-1">
                                             <div className="font-semibold text-sm">Select Graphs</div>
@@ -627,9 +680,49 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
                                                 </div>
                                             )}
                                         </div>
+
+
                                     </div>
 
 
+
+
+
+
+                                </div>
+                                <div className="flex gap-x-3">
+
+
+                                    <div className="dark:bg-[#212628] h-52 rounded-xl w-1/3 bg-white p-2">
+                                        <div className="font-semibold text-sm mb-1 mt-1">Encoding Technique for Categorical Data</div>
+                                        <div className="dark:bg-[#0E0E0E] bg-[#E6E6E6] h-40 p-3 rounded-xl overflow-auto">
+
+                                            {trainFile ? (
+                                                <>
+                                                    <Select onValueChange={setEncodingMethod} value={encodingMethod}>
+                                                        <SelectTrigger className="w-full text-xs text-white">
+                                                            <SelectValue placeholder="Select Encoding Method" />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            <SelectItem value="none">None (Use Only Numeric Columns)</SelectItem>
+                                                            <SelectItem value="one-hot">One-Hot Encoding</SelectItem>
+                                                            <SelectItem value="label">Label Encoding</SelectItem>
+                                                            <SelectItem value="target">Target Encoding</SelectItem>
+                                                        </SelectContent>
+                                                    </Select>
+
+                                                    {/* Note for users */}
+                                                    <div className="text-xs text-gray-400 mt-2 text-center">
+                                                        ⚡ If unsure, keep <span className="font-semibold">One-Hot Encoding</span> as default. No effect if no categorical data found.
+                                                    </div>
+                                                </>
+                                            ) : (
+                                                <div className="text-center text-white">
+                                                    Please select a train file to choose an encoding method.
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
 
                                     <div className="dark:bg-[#212628] h-52 rounded-xl w-1/3 bg-white p-2">
                                         <div className="flex items-center justify-between mb-1 mt-1">
@@ -730,75 +823,51 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
                                         </div>
                                     </div>
 
-                                </div>
-                                <div className="flex gap-x-3">
-                                    <div className="dark:bg-[#212628] h-52 rounded-xl w-1/3 bg-white p-2">
-                                        <div className="font-semibold text-sm mb-1 mt-1">Encoding Technique for Categorical Data</div>
-                                        <div className="dark:bg-[#0E0E0E] bg-[#E6E6E6] h-40 p-3 rounded-xl overflow-auto">
 
-                                            {trainFile ? (
-                                                <>
-                                                    <Select onValueChange={setEncodingMethod} value={encodingMethod}>
-                                                        <SelectTrigger className="w-full text-xs text-white">
-                                                            <SelectValue placeholder="Select Encoding Method" />
-                                                        </SelectTrigger>
-                                                        <SelectContent>
-                                                            <SelectItem value="none">None (Use Only Numeric Columns)</SelectItem>
-                                                            <SelectItem value="one-hot">One-Hot Encoding</SelectItem>
-                                                            <SelectItem value="label">Label Encoding</SelectItem>
-                                                            <SelectItem value="target">Target Encoding</SelectItem>
-                                                        </SelectContent>
-                                                    </Select>
 
-                                                    {/* Note for users */}
-                                                    <div className="text-xs text-gray-400 mt-2 text-center">
-                                                        ⚡ If unsure, keep <span className="font-semibold">One-Hot Encoding</span> as default. No effect if no categorical data found.
+
+
+
+                                    {/* Advanced Tab */}
+                                    <div className="dark:bg-[#212628] h-auto rounded-xl w-1/3 bg-white p-2">
+                                        {/* Section Title */}
+                                        <div className="font-semibold text-sm mb-2">Feature Scaling</div>
+
+                                        {trainFile ? (
+                                            <div className="grid grid-cols-1 gap-3">
+                                                {/* Feature Scaling (Single Selection) */}
+                                                <div>
+                                                    <div className="dark:bg-[#0E0E0E] bg-[#E6E6E6] p-3 rounded-lg min-h-[160px] overflow-auto">
+                                                        <div className="flex flex-col gap-1">
+                                                            {availableFeatureScaling.map((technique) => (
+                                                                <div key={technique} className="flex items-center text-xs">
+                                                                    <Checkbox
+                                                                        checked={selectedFeatureScaling === technique}
+                                                                        onCheckedChange={() =>
+                                                                            setSelectedFeatureScaling(selectedFeatureScaling === technique ? null : technique)
+                                                                        }
+                                                                    />
+                                                                    <span className="ml-1">{technique}</span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
                                                     </div>
-                                                </>
-                                            ) : (
-                                                <div className="text-center text-white">
-                                                    Please select a train file to choose an encoding method.
                                                 </div>
-                                            )}
-                                        </div>
+                                                {/* Feature Engineering (Multi Selection) */}
+                                                <div>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            // Show this message if no train file is selected
+                                            <div className="text-center ">
+                                                <div className="dark:bg-[#0E0E0E] bg-[#E6E6E6] h-40 p-3 rounded-xl overflow-auto">
+                                                    Please select a train file to enable Feature Scaling options.
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
 
 
-
-
-                                    <div className="dark:bg-[#212628] h-52 rounded-xl w-1/3 bg-white p-2">
-                                        <div className="flex items-center justify-between mb-1 mt-1">
-                                            <div className="font-semibold text-sm">Select Data Exploration Techniques</div>
-                                            <div className="flex items-center">
-                                                <Checkbox
-                                                    checked={selectedExplorations.length === availableExplorations.length}
-                                                    onCheckedChange={toggleSelectAllExplorations}
-                                                />
-                                                <span className="ml-2 text-xs">Select All</span>
-                                            </div>
-                                        </div>
-                                        <div className="dark:bg-[#0E0E0E] bg-[#E6E6E6] h-40 p-3 rounded-xl overflow-auto">
-                                            <div>
-                                                {trainFile ? (
-                                                    <div className="grid grid-cols-2 gap-1">
-                                                        {availableExplorations.map((technique) => (
-                                                            <div key={technique} className="flex items-center text-xs">
-                                                                <Checkbox
-                                                                    checked={selectedExplorations.includes(technique)}
-                                                                    onCheckedChange={() => toggleExploration(technique)}
-                                                                />
-                                                                <span className="ml-1">{technique}</span>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                ) : (
-                                                    <div className="text-center">Please select a train file to enable data exploration selection.</div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div className="dark:bg-[#212628] h-52 rounded-xl w-1/3 bg-white"></div>
                                 </div>
                             </div>
 

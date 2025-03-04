@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
     const remove_Duplicates = searchParams.get("remove_Duplicates") === "true";
     const encoding_method = searchParams.get("encoding_Method");
 
-    // Outlier Detection Parameters
+    // ✅ Outlier Detection Parameters
     const enable_outlier_detection = searchParams.get("enable_outlier_detection") === "true";
     const outlier_method = searchParams.get("outlier_method");
     const z_score_threshold = searchParams.get("z_score_threshold");
@@ -27,7 +27,10 @@ export async function GET(req: NextRequest) {
     const winsor_lower = searchParams.get("winsor_lower");
     const winsor_upper = searchParams.get("winsor_upper");
 
-    // ✅ New: Get selected data exploration techniques
+    // ✅ Feature Scaling & Dimensionality Reduction
+    const feature_scaling = searchParams.get("feature_scaling");
+
+    // ✅ Selected Data Exploration Techniques
     const selected_explorations = searchParams.get("available_Explorations");
 
     if (!train_csv_path) {
@@ -72,12 +75,18 @@ export async function GET(req: NextRequest) {
       args.push("--encoding_type", encoding_method);
     }
 
-    // ✅ New: Add selected data exploration techniques
+    // ✅ Add Feature Scaling (if selected)
+    if (feature_scaling) {
+      args.push("--feature_scaling", feature_scaling);
+    }
+
+
+    // ✅ Add Data Exploration Techniques
     if (selected_explorations) {
       args.push("--selected_explorations", selected_explorations);
     }
 
-    // Add Outlier Detection Parameters if enabled
+    // ✅ Add Outlier Detection Parameters if enabled
     if (enable_outlier_detection) {
       args.push("--enable_outlier_detection", "true");
       args.push("--outlier_method", outlier_method || "");
