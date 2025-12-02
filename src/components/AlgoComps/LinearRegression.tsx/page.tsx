@@ -335,8 +335,14 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
                 eventSource.close();
                 setIsRunning(false);
             } else {
-                allLogs += event.data + "\n";
-                setLogs((prev) => prev + event.data + "\n");
+                // Filter out the JSON marker from terminal display
+                if (!event.data.includes("__GENERATED_GRAPHS_JSON__")) {
+                    allLogs += event.data + "\n";
+                    setLogs((prev) => prev + event.data + "\n");
+                } else {
+                    // Still accumulate for parsing, just don't display
+                    allLogs += event.data + "\n";
+                }
             }
         };
 
