@@ -43,6 +43,7 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
     const [encodingMethod, setEncodingMethod] = useState("one-hot");
     const [selectedExplorations, setSelectedExplorations] = useState<string[]>([]);
     const [selectedFeatureScaling, setSelectedFeatureScaling] = useState<string | null>(null);
+    const [generatedGraphs, setGeneratedGraphs] = useState<string[]>([]);
 
     const availableFeatureScaling = [
         "Min-Max Scaling",
@@ -221,6 +222,7 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
     const handleRunScript = () => {
         setLogs(""); // Clear previous logs
         setResults(""); // Clear previous results
+        setGeneratedGraphs([]); // Clear previous graphs
         setIsRunning(true); // Disable button
 
         if (!datasetPath || !trainFile) {
@@ -318,6 +320,18 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
                             line.includes("Skipping accuracy")
                     );
                 setResults(resultLines.join("\n"));
+                
+                // Parse generated graphs JSON
+                const graphsMatch = allLogs.match(/__GENERATED_GRAPHS_JSON__(.+?)__END_GRAPHS__/);
+                if (graphsMatch) {
+                    try {
+                        const graphs = JSON.parse(graphsMatch[1]);
+                        setGeneratedGraphs(graphs);
+                    } catch (e) {
+                        console.error("Failed to parse graphs JSON:", e);
+                    }
+                }
+                
                 eventSource.close();
                 setIsRunning(false);
             } else {
@@ -883,13 +897,45 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
                             </div>
                         </TabsContent>
                         <TabsContent value="graphs">
-                            <div className="flex flex-col items-center justify-center h-[700px] dark:bg-[#0E0E0E] bg-[#E6E6E6] rounded-xl ml-4 mr-4 text-center p-8 space-y-8">
-                                <h2 className="text-5xl font-bold">Graphs will be saved in this Directory</h2>
-                                <p className="text-3xl font-semibold">
-                                    {datasetPath
-                                        ? `${datasetPath.replace(/[/\\]+$/, "")}/linearregression-${trainFile ? trainFile.split(".")[0] : "N/A"}`
-                                        : "N/A"}
-                                </p>
+                            <div className="border border-[rgb(61,68,77)] dark:bg-[#0E0E0E] bg-[#E6E6E6] rounded-xl ml-4 mr-4 p-4 max-h-[700px] overflow-y-auto">
+                                {generatedGraphs.length > 0 ? (
+                                    <div className="grid grid-cols-3 gap-4">
+                                        {generatedGraphs.map((graphPath, index) => {
+                                            const graphName = graphPath.split(/[\/\\]/).pop()?.replace('.png', '').replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                                            const imageUrl = `/api/users/graphs?path=${encodeURIComponent(graphPath)}`;
+                                            return (
+                                                <div key={index} className="dark:bg-[#212628] bg-white rounded-lg p-3 shadow-lg">
+                                                    <h3 className="text-sm font-semibold mb-2 text-center">{graphName}</h3>
+                                                    <img 
+                                                        src={imageUrl} 
+                                                        alt={graphName || `Graph ${index + 1}`}
+                                                        className="w-full h-auto rounded border border-gray-300 dark:border-gray-600"
+                                                        onError={(e) => {
+                                                            const target = e.target as HTMLImageElement;
+                                                            target.style.display = 'none';
+                                                            const parent = target.parentElement;
+                                                            if (parent) {
+                                                                const errorDiv = document.createElement('div');
+                                                                errorDiv.className = 'text-xs text-gray-500 p-2 break-all';
+                                                                errorDiv.textContent = `Saved at: ${graphPath}`;
+                                                                parent.appendChild(errorDiv);
+                                                            }
+                                                        }}
+                                                    />
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                ) : (
+                                    <div className="flex flex-col items-center justify-center h-[650px] text-center space-y-4">
+                                        <h2 className="text-4xl font-bold">No Graphs Generated Yet</h2>
+                                        <p className="text-xl text-gray-500">
+                                            {datasetPath && trainFile
+                                                ? `Graphs will be saved in: ${datasetPath.replace(/[/\\]+$/, "")}/linearregression-${trainFile.split(".")[0]}`
+                                                : "Run the script to generate and view graphs here"}
+                                        </p>
+                                    </div>
+                                )}
                             </div>
                         </TabsContent>
 

@@ -176,8 +176,13 @@ logging.getLogger().addHandler(console_handler)
 
 log_and_print("========== STARTED ==========")
 
+# ====== Track Generated Graphs ======
+generated_graphs = []
 
-
+# ====== Normalize Paths for Cross-Platform Compatibility ======
+def normalize_path(path):
+    """Convert path separators to forward slashes for consistent handling"""
+    return path.replace('\\', '/')
 
 
 
@@ -649,6 +654,7 @@ if selected_graphs is None or "Heatmap" in selected_graphs:
     plt.title("Feature Correlation Heatmap")
     plt.savefig(heatmap_path)
     plt.close()
+    generated_graphs.append(normalize_path(heatmap_path))
     log_and_print(f"Feature correlation heatmap saved to {heatmap_path}")
 
 # ====== Save Histogram of Output Distribution ======
@@ -660,6 +666,7 @@ if selected_graphs is None or "Histogram Distribution" in selected_graphs:
     plt.xlabel(output_column)
     plt.savefig(histogram_path)
     plt.close()
+    generated_graphs.append(normalize_path(histogram_path))
     log_and_print(f"Output distribution histogram saved to {histogram_path}")
 
 # ====== Save Box Plots for All Columns ======
@@ -676,6 +683,7 @@ if selected_graphs is None or "Box Plot" in selected_graphs:
         plt.title("Box Plots for All Numeric Features")
         plt.savefig(boxplot_path, bbox_inches="tight")  # Save with tight layout
         plt.close()
+        generated_graphs.append(normalize_path(boxplot_path))
         log_and_print(f"Box plots saved to {boxplot_path}")
     else:
         log_and_print("No numeric columns found for box plots.")
@@ -695,6 +703,7 @@ if selected_graphs is None or "Residual Plot" in selected_graphs:
     plt.title("Residual Plot")
     plt.savefig(residual_plot_path)
     plt.close()
+    generated_graphs.append(normalize_path(residual_plot_path))
     log_and_print(f"Residual Plot saved to {residual_plot_path}")
 
 # Histogram of Residuals
@@ -706,6 +715,7 @@ if selected_graphs is None or "Histogram Residuals" in selected_graphs:
     plt.title("Histogram of Residuals")
     plt.savefig(hist_resid_path)
     plt.close()
+    generated_graphs.append(normalize_path(hist_resid_path))
     log_and_print(f"Histogram of Residuals saved to {hist_resid_path}")
 
 
@@ -728,6 +738,7 @@ if selected_graphs is None or "Model Coefficients" in selected_graphs:
     plt.tight_layout()
     plt.savefig(weight_plot_path)
     plt.close()
+    generated_graphs.append(normalize_path(weight_plot_path))
     log_and_print(f"Model Coefficients plot saved to {weight_plot_path}")
 
 # ----- Effect Plot for a Selected Feature -----
@@ -761,6 +772,7 @@ if selected_graphs is None or "Effect Plot" in selected_graphs:
         plt.tight_layout()
         plt.savefig(effect_plot_path)
         plt.close()
+        generated_graphs.append(normalize_path(effect_plot_path))
         log_and_print(f"Effect Plot for {selected_feature} saved to {effect_plot_path}")
     else:
         log_and_print(f"Selected feature '{selected_feature}' is not numeric. Skipping Effect Plot.")
@@ -801,6 +813,7 @@ if selected_graphs is None or "Mean Effect Plot" in selected_graphs:
     plt.tight_layout()
     plt.savefig(mean_effect_plot_path)
     plt.close()
+    generated_graphs.append(normalize_path(mean_effect_plot_path))
     log_and_print(f"Mean Effect Plot saved to {mean_effect_plot_path}")
 
 
@@ -821,6 +834,7 @@ if selected_graphs is None or "Individual Effect Plot" in selected_graphs:
     individual_effect_plot_path = os.path.join(output_dir, "individual_effect_plot.png")
     plt.savefig(individual_effect_plot_path)
     plt.close()
+    generated_graphs.append(normalize_path(individual_effect_plot_path))
     log_and_print(f"Individual Effect Plot saved to {individual_effect_plot_path}")
 
 
@@ -844,6 +858,7 @@ if selected_graphs is None or "Trend Effect Plot" in selected_graphs:
     plt.tight_layout()
     plt.savefig(trend_effect_plot_path)
     plt.close()
+    generated_graphs.append(normalize_path(trend_effect_plot_path))
     log_and_print(f"Trend Effect Plot saved to {trend_effect_plot_path}")
 
 
@@ -871,6 +886,7 @@ if selected_graphs is None or "Shap Summary Plot" in selected_graphs:
         plt.title("SHAP Summary Plot")
         plt.savefig(shap_summary_plot_path, bbox_inches="tight")
         plt.close()
+        generated_graphs.append(normalize_path(shap_summary_plot_path))
         log_and_print(f"SHAP Summary Plot saved to {shap_summary_plot_path}")
 
 
@@ -901,7 +917,9 @@ if is_classification:
 else:
     log_and_print("Skipping accuracy score because target is continuous.")
 
-
-
+# ====== Print Generated Graphs for Frontend ======
+import json
+print(f"__GENERATED_GRAPHS_JSON__{json.dumps(generated_graphs)}__END_GRAPHS__")
+sys.stdout.flush()
 
 log_and_print("========== FINISHED SUCCESSFULLY ==========")
