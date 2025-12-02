@@ -5,6 +5,7 @@ import os
 import argparse
 import logging
 import json
+import re
 
 
 
@@ -13,6 +14,17 @@ def log_and_print(message):
     print(message)
     print("-" * 200)
     sys.stdout.flush()
+
+
+def sanitize_filename(filename):
+    """Remove or replace characters that are problematic in filenames."""
+    # Replace spaces and special characters with underscores
+    filename = re.sub(r'[^\w\s-]', '_', filename)
+    # Replace multiple spaces/underscores with single underscore
+    filename = re.sub(r'[\s_]+', '_', filename)
+    # Remove leading/trailing underscores
+    filename = filename.strip('_')
+    return filename
 
 
 
@@ -298,6 +310,8 @@ numeric_cols = df_train.select_dtypes(include=[np.number]).columns
 non_numeric_cols = df_train.select_dtypes(exclude=[np.number]).columns
 
 logging.info("Starting missing value handling for training dataset...")
+initial_rows = df_train.shape[0]
+log_and_print(f"Initial dataset: {initial_rows} rows")
 
 # ========== Handle Missing Values Based on User Selection ==========
 if selected_missingval_tech == "Mean Imputation":
@@ -320,6 +334,7 @@ elif selected_missingval_tech == "Drop Rows with Missing Values":
     before_rows = df_train.shape[0]
     df_train.dropna(inplace=True)
     after_rows = df_train.shape[0]
+    log_and_print(f"⚠️ Dropped {before_rows - after_rows} rows with missing values. Remaining: {after_rows}")
     logging.info(f"Dropped {before_rows - after_rows} rows due to missing values.")
 else:
     logging.error(f"Invalid missing value handling technique: {selected_missingval_tech}")
@@ -330,7 +345,10 @@ if args.remove_duplicates:
     before_rows = df_train.shape[0]
     df_train.drop_duplicates(inplace=True)
     after_rows = df_train.shape[0]
-    logging.info(f"Removed {before_rows - after_rows} duplicate rows from the training dataset.")
+    removed = before_rows - after_rows
+    if removed > 0:
+        log_and_print(f"Removed {removed} duplicate rows. Remaining: {after_rows}")
+    logging.info(f"Removed {removed} duplicate rows from the training dataset.")
 
 # ========== Outlier Removal ==========
 if args.enable_outlier_detection.lower() == "true":
@@ -343,8 +361,11 @@ if args.enable_outlier_detection.lower() == "true":
             logging.warning("⚠️ No numeric columns found. Skipping Z-score outlier removal.")
         else:
             try:
+                before_rows = df_train.shape[0]
                 z_scores = np.abs(stats.zscore(df_train[numeric_cols]))
                 df_train = df_train[(z_scores < args.z_score_threshold).all(axis=1)]
+                removed = before_rows - df_train.shape[0]
+                log_and_print(f"Z-score outlier removal: Removed {removed} rows. Remaining: {df_train.shape[0]}")
                 logging.info(f"✅ Outliers removed using Z-score method. New shape: {df_train.shape}")
             except Exception as e:
                 logging.error(f"⚠️ Error in Z-score computation: {e}")
@@ -389,6 +410,14 @@ else:
 # ========== Convert Categorical Columns Based on Encoding Method ==========
 feature_cols = [col for col in df_train.columns if col != output_column]
 categorical_cols = [col for col in feature_cols if df_train[col].dtype == 'object']
+
+# IMPORTANT: Extract unique values BEFORE encoding (for prediction dropdowns)
+categorical_values_dict = {}
+if categorical_cols:
+    for col in categorical_cols:
+        categorical_values_dict[col] = sorted(df_train[col].astype(str).unique().tolist())
+        log_and_print(f"Categorical column '{col}' has {len(categorical_values_dict[col])} unique values")
+
 if args.encoding_type.lower() == "one-hot":
     df_train = pd.get_dummies(df_train, columns=categorical_cols, drop_first=True)
     logging.info("Categorical columns converted using One-Hot Encoding.")
@@ -402,10 +431,12 @@ elif args.encoding_type.lower() == "label":
     logging.info("Categorical columns converted using Label Encoding.")
 elif args.encoding_type.lower() == "target":
     from collections import defaultdict
-    target_means = defaultdict(float)
+    target_means_dict = {}  # Store for prediction use
     for col in categorical_cols:
-        target_means[col] = df_train.groupby(col)[output_column].mean()
-        df_train[col] = df_train[col].map(target_means[col])
+        target_means = df_train.groupby(col)[output_column].mean().to_dict()
+        target_means_dict[col] = target_means
+        df_train[col] = df_train[col].map(target_means)
+        log_and_print(f"Target Encoding: '{col}' mapped to {len(target_means)} mean values")
     logging.info("Categorical columns converted using Target Encoding.")
 elif args.encoding_type.lower() == "none":
     skipped_categorical_cols = df_train.select_dtypes(exclude=[np.number]).columns.tolist()
@@ -420,6 +451,27 @@ else:
 
 logging.info("Training Data Cleaning Completed.")
 print("\nData Cleaning & Exploration Done. Check logs for details.")
+
+# ========== Critical Check: Ensure Dataset is Not Empty ==========
+if df_train.shape[0] == 0:
+    log_and_print("❌ ERROR: Dataset is empty after cleaning!")
+    log_and_print("Possible causes:")
+    log_and_print("  1. Too aggressive missing value removal (all rows had missing values)")
+    log_and_print("  2. Outlier removal deleted all data")
+    log_and_print("  3. Data type conversion failures")
+    log_and_print("  4. All categorical values were invalid/NaN")
+    log_and_print("\nSuggestions:")
+    log_and_print("  - Try 'Fill with Mean/Median' instead of 'Drop Rows'")
+    log_and_print("  - Use less aggressive outlier removal")
+    log_and_print("  - Check your CSV file for data quality issues")
+    log_and_print("  - Ensure numeric columns contain actual numbers")
+    sys.exit(1)
+
+log_and_print(f"✅ Dataset after cleaning: {df_train.shape[0]} rows, {df_train.shape[1]} columns")
+
+if df_train.shape[0] < 10:
+    log_and_print(f"⚠️ WARNING: Only {df_train.shape[0]} rows remaining. Results may be unreliable.")
+    log_and_print("Consider using less aggressive data cleaning options.")
 
 
 
@@ -820,7 +872,7 @@ if selected_graphs is None or "Mean Effect Plot" in selected_graphs:
             y_eff = model.predict(X_effect_scaled)
             mean_effect.append(y_eff[0])
 
-        mean_effect_plot_path = os.path.join(output_dir, f"mean_effect_plot_{selected_feature}.png")
+        mean_effect_plot_path = os.path.join(output_dir, f"mean_effect_plot_{sanitize_filename(selected_feature)}.png")
         plt.figure(figsize=(8,6))
         plt.plot(bin_centers, mean_effect, marker='o', linestyle='-')
         plt.xlabel(selected_feature)
@@ -854,7 +906,7 @@ if selected_graphs is None or "Individual Effect Plot" in selected_graphs:
         plt.ylabel(f"Predicted {output_column}")
         plt.title(f"Individual Effect Plot for {selected_feature}")
         plt.tight_layout()
-        individual_effect_plot_path = os.path.join(output_dir, f"individual_effect_plot_{selected_feature}.png")
+        individual_effect_plot_path = os.path.join(output_dir, f"individual_effect_plot_{sanitize_filename(selected_feature)}.png")
         plt.savefig(individual_effect_plot_path)
         plt.close()
         generated_graphs.append(normalize_path(individual_effect_plot_path))
@@ -877,7 +929,7 @@ if selected_graphs is None or "Trend Effect Plot" in selected_graphs:
         # Use the full training set predictions for plotting
         sorted_predictions = model.predict(X_train_full_scaled)[sorted_indices]
 
-        trend_effect_plot_path = os.path.join(output_dir, f"trend_effect_plot_{selected_feature}.png")
+        trend_effect_plot_path = os.path.join(output_dir, f"trend_effect_plot_{sanitize_filename(selected_feature)}.png")
         plt.figure(figsize=(8,6))
         plt.plot(sorted_feature, sorted_predictions, color='purple', lw=2)
         plt.xlabel(selected_feature)
@@ -922,10 +974,36 @@ if selected_graphs is None or "Shap Summary Plot" in selected_graphs:
 
 
 
-# ====== Save Model ======
+# ====== Save Model, Scaler, and Preprocessing Info ======
 model_path = os.path.join(output_dir, "model.pkl")
+scaler_path = os.path.join(output_dir, "scaler.pkl")
+preprocessing_path = os.path.join(output_dir, "preprocessing.pkl")
+
+# Detect if target is binary classification
+target_unique_values = sorted(df_train[output_column].unique())
+is_binary = len(target_unique_values) <= 2 and all(v in [0, 1] for v in target_unique_values)
+log_and_print(f"Target column '{output_column}': {len(target_unique_values)} unique values - {'Binary Classification' if is_binary else 'Regression'}")
+
+# Prepare preprocessing information
+preprocessing_info = {
+    'original_train_columns': train_columns,  # User-selected columns before encoding
+    'final_feature_names': existing_train_columns,  # Actual features after encoding
+    'encoding_type': args.encoding_type,
+    'categorical_cols': categorical_cols,
+    'categorical_values': categorical_values_dict,  # Unique values for each categorical column (extracted before encoding)
+    'label_encoders': label_encoders if args.encoding_type.lower() == 'label' else None,
+    'target_means': target_means_dict if args.encoding_type.lower() == 'target' else None,  # Mean mappings for Target Encoding
+    'encoding_added_cols': encoding_added_cols,  # Mapping of original → encoded columns
+    'is_binary_classification': is_binary,  # Whether target is binary (0/1)
+    'target_name': output_column  # Name of target column for display
+}
+
 joblib.dump(model, model_path)
+joblib.dump(scaler, scaler_path)
+joblib.dump(preprocessing_info, preprocessing_path)
 log_and_print(f"Model saved as '{model_path}'")
+log_and_print(f"Scaler saved as '{scaler_path}'")
+log_and_print(f"Preprocessing info saved as '{preprocessing_path}'")
 
 # ====== Save Paths to a File ======
 path_file = os.path.join(output_dir, "saved_paths.txt")

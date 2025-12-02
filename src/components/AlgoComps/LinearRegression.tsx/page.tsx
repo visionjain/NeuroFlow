@@ -46,6 +46,16 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
     const [generatedGraphs, setGeneratedGraphs] = useState<string[]>([]);
     const [selectedEffectFeatures, setSelectedEffectFeatures] = useState<string[]>([]);
     const [zoomedGraph, setZoomedGraph] = useState<string | null>(null);
+    const [modelTrained, setModelTrained] = useState<boolean>(false);
+    const [predictionInputs, setPredictionInputs] = useState<{ [key: string]: string }>({});
+    const [predictionResult, setPredictionResult] = useState<string | null>(null);
+    const [predictionIsBinary, setPredictionIsBinary] = useState<boolean | null>(null);
+    const [isPredicting, setIsPredicting] = useState<boolean>(false);
+    const [categoricalInfo, setCategoricalInfo] = useState<{
+        categorical_cols: string[];
+        numeric_cols: string[];
+        categorical_values: { [key: string]: string[] };
+    } | null>(null);
 
     const availableFeatureScaling = [
         "Min-Max Scaling",
@@ -103,6 +113,36 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
             terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
         }
     }, [logs]);
+
+    // Fetch categorical info when model is trained
+    useEffect(() => {
+        if (modelTrained && datasetPath && trainFile) {
+            const fetchCategoricalInfo = async () => {
+                try {
+                    const normalizedPath = datasetPath.trim().replace(/[/\\]+$/, "");
+                    const isWindows = navigator.platform.startsWith("Win");
+                    const separator = isWindows ? "\\\\" : "/";
+                    const modelDir = `${normalizedPath}${separator}linearregression-${trainFile?.split(".")[0]}`;
+                    const modelPath = `${modelDir}${separator}model.pkl`;
+
+                    const response = await fetch(`/api/users/scripts/predict?model_path=${encodeURIComponent(modelPath)}`);
+                    const data = await response.json();
+
+                    if (data.categorical_cols && data.categorical_values) {
+                        setCategoricalInfo({
+                            categorical_cols: data.categorical_cols,
+                            numeric_cols: data.numeric_cols || [],
+                            categorical_values: data.categorical_values
+                        });
+                    }
+                } catch (error) {
+                    console.error("Failed to fetch categorical info:", error);
+                }
+            };
+
+            fetchCategoricalInfo();
+        }
+    }, [modelTrained, datasetPath, trainFile]);
 
 
 
@@ -225,6 +265,8 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
         setLogs(""); // Clear previous logs
         setResults(""); // Clear previous results
         setGeneratedGraphs([]); // Clear previous graphs
+        setModelTrained(false); // Reset model trained status
+        setPredictionResult(null); // Clear previous predictions
         setIsRunning(true); // Disable button
 
         if (!datasetPath || !trainFile) {
@@ -310,10 +352,14 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
 
         // Local variable to accumulate all output lines
         let allLogs = "";
+        let trainingSuccessful = false; // Track if training completed successfully
         const eventSource = new EventSource(apiUrl);
 
         eventSource.onmessage = (event) => {
             if (event.data === "END_OF_STREAM") {
+                // Check if we saw "FINISHED SUCCESSFULLY" in the logs
+                trainingSuccessful = allLogs.includes("FINISHED SUCCESSFULLY");
+                
                 // Once stream ends, parse accumulated logs for results lines
                 const resultLines = allLogs
                     .split("\n")
@@ -339,6 +385,14 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
                 
                 eventSource.close();
                 setIsRunning(false);
+                
+                // ONLY enable prediction tab if training was successful
+                if (trainingSuccessful) {
+                    setModelTrained(true);
+                } else {
+                    setModelTrained(false);
+                    setLogs((prev) => prev + "\n❌ Training failed. Prediction tab remains locked.\n");
+                }
             } else {
                 // Filter out the JSON marker from terminal display
                 if (!event.data.includes("__GENERATED_GRAPHS_JSON__")) {
@@ -355,6 +409,8 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
             console.error("EventSource failed:", error);
             eventSource.close();
             setIsRunning(false);
+            setModelTrained(false); // Keep prediction tab locked on error
+            setLogs((prev) => prev + "\n❌ Connection error or training interrupted.\n");
         };
     };
 
@@ -412,30 +468,37 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
                         </div>
 
                         {/* Tabs Navigation */}
-                        <TabsList className="flex w-[40%] text-black dark:text-white bg-[#e6e6e6] dark:bg-[#0F0F0F]">
+                        <TabsList className="flex w-[50%] text-black dark:text-white bg-[#e6e6e6] dark:bg-[#0F0F0F]">
                             <TabsTrigger
-                                className="w-[30%] border border-transparent data-[state=active]:border-[rgb(61,68,77)] data-[state=active]:rounded-md data-[state=active]:bg-[#212628]"
+                                className="w-[20%] border border-transparent data-[state=active]:border-[rgb(61,68,77)] data-[state=active]:rounded-md data-[state=active]:bg-[#212628]"
                                 value="home"
                             >
                                 Home
                             </TabsTrigger>
                             <TabsTrigger
-                                className="w-[30%] border border-transparent data-[state=active]:border-[rgb(61,68,77)] data-[state=active]:rounded-md data-[state=active]:bg-[#212628]"
+                                className="w-[20%] border border-transparent data-[state=active]:border-[rgb(61,68,77)] data-[state=active]:rounded-md data-[state=active]:bg-[#212628]"
                                 value="graphs"
                             >
                                 Graphs
                             </TabsTrigger>
                             <TabsTrigger
-                                className="w-[30%] border border-transparent data-[state=active]:border-[rgb(61,68,77)] data-[state=active]:rounded-md data-[state=active]:bg-[#212628]"
+                                className="w-[20%] border border-transparent data-[state=active]:border-[rgb(61,68,77)] data-[state=active]:rounded-md data-[state=active]:bg-[#212628]"
                                 value="result"
                             >
                                 Results
                             </TabsTrigger>
                             <TabsTrigger
-                                className="w-[30%] border border-transparent data-[state=active]:border-[rgb(61,68,77)] data-[state=active]:rounded-md data-[state=active]:bg-[#212628]"
+                                className="w-[20%] border border-transparent data-[state=active]:border-[rgb(61,68,77)] data-[state=active]:rounded-md data-[state=active]:bg-[#212628]"
                                 value="terminal"
                             >
                                 Terminal
+                            </TabsTrigger>
+                            <TabsTrigger
+                                className="w-[20%] border border-transparent data-[state=active]:border-[rgb(61,68,77)] data-[state=active]:rounded-md data-[state=active]:bg-[#212628] disabled:opacity-50 disabled:cursor-not-allowed"
+                                value="predict"
+                                disabled={!modelTrained}
+                            >
+                                {modelTrained ? "🔮 Predict" : "🔒 Predict"}
                             </TabsTrigger>
                         </TabsList>
 
@@ -1164,6 +1227,262 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
                                         <p className="text-gray-500 dark:text-gray-400">
                                             Run the model to see performance metrics here
                                         </p>
+                                    </div>
+                                )}
+                            </div>
+                        </TabsContent>
+
+                        {/* Predict Tab Content */}
+                        <TabsContent value="predict">
+                            <div className="border border-[rgb(61,68,77)] dark:bg-[#0E0E0E] bg-[#E6E6E6] rounded-xl ml-4 mr-4 p-6">
+                                {modelTrained ? (
+                                    <div className="space-y-6">
+                                        <div className="text-center mb-6">
+                                            <h2 className="text-3xl font-bold mb-2 bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
+                                                🔮 Make Predictions
+                                            </h2>
+                                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                                                Enter feature values to predict {selectedOutputColumn || 'the target'}
+                                            </p>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-h-[400px] overflow-y-auto p-4 dark:bg-[#212628] bg-white rounded-lg">
+                                            {selectedTrainColumns.map((column) => {
+                                                const isCategorical = categoricalInfo?.categorical_cols.includes(column);
+                                                const isNumeric = categoricalInfo?.numeric_cols.includes(column);
+                                                const options = isCategorical ? categoricalInfo?.categorical_values[column] : null;
+
+                                                return (
+                                                    <div key={column} className="space-y-2">
+                                                        <Label className="text-sm font-semibold">
+                                                            {column}
+                                                            {isCategorical && <span className="ml-2 text-xs text-purple-500 font-medium">(categorical)</span>}
+                                                            {isNumeric && <span className="ml-2 text-xs text-blue-500 font-medium">(numeric)</span>}
+                                                        </Label>
+                                                        
+                                                        {isCategorical && options ? (
+                                                            <select
+                                                                value={predictionInputs[column] || ""}
+                                                                onChange={(e) => 
+                                                                    setPredictionInputs(prev => ({
+                                                                        ...prev,
+                                                                        [column]: e.target.value
+                                                                    }))
+                                                                }
+                                                                className="w-full px-3 py-2 border rounded-lg dark:bg-[#0F0F0F] dark:border-gray-700 dark:text-white focus:ring-2 focus:ring-purple-500"
+                                                            >
+                                                                <option value="">Select {column}...</option>
+                                                                {options.map((option) => (
+                                                                    <option key={option} value={option}>
+                                                                        {option}
+                                                                    </option>
+                                                                ))}
+                                                            </select>
+                                                        ) : (
+                                                            <Input
+                                                                type="number"
+                                                                step="any"
+                                                                placeholder={`Enter ${column}`}
+                                                                value={predictionInputs[column] || ""}
+                                                                onChange={(e) => 
+                                                                    setPredictionInputs(prev => ({
+                                                                        ...prev,
+                                                                        [column]: e.target.value
+                                                                    }))
+                                                                }
+                                                                className="dark:bg-[#0F0F0F]"
+                                                            />
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+
+                                        <div className="flex justify-center gap-4">
+                                            <Button
+                                                onClick={async () => {
+                                                    // Check if all fields are filled
+                                                    const missingFields = selectedTrainColumns.filter(
+                                                        col => !predictionInputs[col] || predictionInputs[col].trim() === ""
+                                                    );
+                                                    
+                                                    if (missingFields.length > 0) {
+                                                        alert(`Please fill in all fields. Missing: ${missingFields.join(", ")}`);
+                                                        return;
+                                                    }
+
+                                                    setIsPredicting(true);
+                                                    setPredictionResult(null);
+
+                                                    try {
+                                                        // Construct the path to the saved model
+                                                        const normalizedPath = datasetPath.trim().replace(/[/\\]+$/, "");
+                                                        const isWindows = navigator.platform.startsWith("Win");
+                                                        const separator = isWindows ? "\\\\" : "/";
+                                                        const modelDir = `${normalizedPath}${separator}linearregression-${trainFile?.split(".")[0]}`;
+                                                        const modelPath = `${modelDir}${separator}model.pkl`;
+
+                                                        // Prepare input values as an object with feature names
+                                                        // Keep text values as strings, convert numbers
+                                                        const inputValues: Record<string, any> = {};
+                                                        selectedTrainColumns.forEach(col => {
+                                                            const val = predictionInputs[col];
+                                                            // Keep original value (text or number)
+                                                            inputValues[col] = val;
+                                                        });
+
+                                                        const response = await fetch('/api/users/scripts/predict', {
+                                                            method: 'POST',
+                                                            headers: { 'Content-Type': 'application/json' },
+                                                            body: JSON.stringify({
+                                                                model_path: modelPath,
+                                                                input_values: inputValues
+                                                            })
+                                                        });
+
+                                                        const data = await response.json();
+                                                        
+                                                        console.log("Prediction response:", data);
+                                                        
+                                                        if (data.error) {
+                                                            setPredictionResult(`Error: ${data.error}`);
+                                                            setPredictionIsBinary(null);
+                                                        } else {
+                                                            setPredictionResult(data.prediction);
+                                                            setPredictionIsBinary(data.is_binary ?? null);
+                                                        }
+                                                    } catch (error) {
+                                                        setPredictionResult(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                                                    } finally {
+                                                        setIsPredicting(false);
+                                                    }
+                                                }}
+                                                disabled={isPredicting}
+                                                className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white px-8 py-3 rounded-lg font-semibold"
+                                            >
+                                                {isPredicting ? (
+                                                    <>
+                                                        <FaSpinner className="animate-spin mr-2 inline" />
+                                                        Predicting...
+                                                    </>
+                                                ) : (
+                                                    "🔮 Predict"
+                                                )}
+                                            </Button>
+                                            
+                                            <Button
+                                                onClick={() => {
+                                                    setPredictionInputs({});
+                                                    setPredictionResult(null);
+                                                    setPredictionIsBinary(null);
+                                                }}
+                                                variant="outline"
+                                                className="px-8 py-3 rounded-lg font-semibold"
+                                            >
+                                                🔄 Clear
+                                            </Button>
+                                        </div>
+
+                                        {predictionResult !== null && (
+                                            <div className="mt-6">
+                                                <div className="bg-gradient-to-br from-purple-500 to-pink-500 p-8 rounded-2xl shadow-2xl text-white text-center transform hover:scale-105 transition-transform duration-200">
+                                                    <div className="text-6xl mb-4">🎯</div>
+                                                    <div className="text-xl font-medium mb-3 opacity-90">
+                                                        Predicted {selectedOutputColumn}
+                                                    </div>
+                                                    <div className="text-6xl font-bold mb-4">
+                                                        {predictionResult}
+                                                    </div>
+                                                    
+                                                    {/* Smart interpretation - Binary classification vs Regression */}
+                                                    {(() => {
+                                                        const value = parseFloat(predictionResult);
+                                                        if (!isNaN(value)) {
+                                                            // Use backend's determination of binary classification
+                                                            if (predictionIsBinary === true) {
+                                                                const percentage = (value * 100).toFixed(1);
+                                                                const category = value >= 0.5 ? "Positive" : "Negative";
+                                                                const emoji = value >= 0.5 ? "✅" : "❌";
+                                                                return (
+                                                                    <div className="mt-4 space-y-2">
+                                                                        <div className="text-2xl font-semibold">
+                                                                            {emoji} {category} ({percentage}%)
+                                                                        </div>
+                                                                        <div className="text-sm opacity-75">
+                                                                            Confidence: {value >= 0.7 || value <= 0.3 ? "High" : "Moderate"}
+                                                                        </div>
+                                                                        <div className="text-xs opacity-60 mt-1">
+                                                                            Binary Classification Result
+                                                                        </div>
+                                                                    </div>
+                                                                );
+                                                            } 
+                                                            // Regression (continuous value) or unknown
+                                                            else if (predictionIsBinary === false) {
+                                                                return (
+                                                                    <div className="mt-4 space-y-2">
+                                                                        <div className="text-sm opacity-75">
+                                                                            📈 Regression Prediction
+                                                                        </div>
+                                                                        <div className="text-xs opacity-60">
+                                                                            Continuous value predicted by the model
+                                                                        </div>
+                                                                    </div>
+                                                                );
+                                                            } else {
+                                                                // Fallback when binary info not available
+                                                                return (
+                                                                    <div className="text-sm opacity-75 mt-2">
+                                                                        Predicted value
+                                                                    </div>
+                                                                );
+                                                            }
+                                                        }
+                                                        return null;
+                                                    })()}
+                                                    
+                                                    <div className="text-sm opacity-75 mt-4">
+                                                        Based on the trained model
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        <div className="mt-6 space-y-3">
+                                            <div className="p-4 bg-blue-100 dark:bg-blue-900 border-l-4 border-blue-500 rounded-lg">
+                                                <p className="text-sm text-blue-800 dark:text-blue-200">
+                                                    💡 <strong>Tip:</strong> <span className="text-purple-600 dark:text-purple-300 font-semibold">Categorical features</span> appear as dropdowns with values from training data. <span className="text-blue-600 dark:text-blue-300 font-semibold">Numeric features</span> require manual number entry.
+                                                </p>
+                                            </div>
+                                            
+                                            <div className="p-4 bg-purple-100 dark:bg-purple-900 border-l-4 border-purple-500 rounded-lg">
+                                                <p className="text-sm text-purple-800 dark:text-purple-200">
+                                                    📊 <strong>Result Types:</strong>
+                                                </p>
+                                                <ul className="text-xs text-purple-700 dark:text-purple-300 mt-2 ml-4 space-y-1">
+                                                    <li>• <strong>Binary (0-1):</strong> Classification result with percentage confidence</li>
+                                                    <li>• <strong>Continuous (any value):</strong> Regression result for numeric predictions like price, age, etc.</li>
+                                                    <li>• The model automatically detects which type based on the output range</li>
+                                                </ul>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="flex flex-col items-center justify-center h-[600px] text-center space-y-4">
+                                        <div className="text-8xl mb-4">🔒</div>
+                                        <h3 className="text-4xl font-bold bg-gradient-to-r from-gray-600 to-gray-800 dark:from-gray-300 dark:to-gray-500 bg-clip-text text-transparent">
+                                            Model Not Trained Yet
+                                        </h3>
+                                        <p className="text-xl text-gray-500 dark:text-gray-400 max-w-md">
+                                            Train your model first to unlock the prediction interface
+                                        </p>
+                                        <Button
+                                            onClick={handleRunScript}
+                                            disabled={!trainFile || selectedTrainColumns.length === 0 || !selectedOutputColumn}
+                                            className="mt-6 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white px-8 py-3 rounded-lg font-semibold"
+                                        >
+                                            ▶️ Train Model
+                                        </Button>
                                     </div>
                                 )}
                             </div>
