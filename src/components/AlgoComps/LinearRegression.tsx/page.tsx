@@ -44,6 +44,7 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
     const [selectedExplorations, setSelectedExplorations] = useState<string[]>([]);
     const [selectedFeatureScaling, setSelectedFeatureScaling] = useState<string | null>(null);
     const [generatedGraphs, setGeneratedGraphs] = useState<string[]>([]);
+    const [selectedEffectFeatures, setSelectedEffectFeatures] = useState<string[]>([]);
 
     const availableFeatureScaling = [
         "Min-Max Scaling",
@@ -293,6 +294,9 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
             // Feature Scaling (Single Selection)
             feature_scaling: selectedFeatureScaling ? selectedFeatureScaling : "",
 
+            // Effect Features for Comparison
+            effect_features: JSON.stringify(selectedEffectFeatures.length > 0 ? selectedEffectFeatures : [selectedTrainColumns[0]]),
+
         });
 
 
@@ -362,6 +366,27 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
             setSelectedTrainColumns([...trainColumns]); // select all
         }
     };
+
+    // Toggle individual effect feature
+    const toggleEffectFeature = (feature: string) => {
+        setSelectedEffectFeatures((prev) =>
+            prev.includes(feature) ? prev.filter((item) => item !== feature) : [...prev, feature]
+        );
+    };
+
+    // Select all / Deselect all effect features
+    const toggleSelectAllEffectFeatures = () => {
+        if (selectedEffectFeatures.length === selectedTrainColumns.length) {
+            setSelectedEffectFeatures([]); // Deselect all
+        } else {
+            setSelectedEffectFeatures([...selectedTrainColumns]); // Select all
+        }
+    };
+
+    // Check if any effect-based graph is selected
+    const hasEffectGraphsSelected = selectedGraphs.some(graph => 
+        ["Individual Effect Plot", "Mean Effect Plot", "Trend Effect Plot", "Effect Plot"].includes(graph)
+    );
 
 
 
@@ -889,6 +914,52 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
 
 
                                 </div>
+
+                                {/* Fourth Row - Feature Comparison Selection */}
+                                {hasEffectGraphsSelected && trainFile && selectedTrainColumns.length > 0 && (
+                                    <div className="flex gap-x-3">
+                                        <div className="dark:bg-[#212628] h-52 rounded-xl w-full bg-white p-2">
+                                            <div className="flex items-center justify-between mb-1 mt-1">
+                                                <div className="font-semibold text-sm">
+                                                    📊 Select Features for Effect Plot Comparisons
+                                                    <span className="text-xs font-normal text-gray-500 ml-2">
+                                                        (Choose which features to compare against {selectedOutputColumn || 'target'})
+                                                    </span>
+                                                </div>
+                                                <div className="flex items-center">
+                                                    <Checkbox
+                                                        checked={selectedEffectFeatures.length === selectedTrainColumns.length}
+                                                        onCheckedChange={toggleSelectAllEffectFeatures}
+                                                    />
+                                                    <span className="ml-2 text-xs">Select All</span>
+                                                </div>
+                                            </div>
+                                            <div className="dark:bg-[#0E0E0E] bg-[#E6E6E6] h-40 p-3 rounded-xl overflow-auto">
+                                                <div className="grid grid-cols-4 gap-2">
+                                                    {selectedTrainColumns.map((feature) => (
+                                                        <div key={feature} className="flex items-center text-xs">
+                                                            <Checkbox
+                                                                checked={selectedEffectFeatures.includes(feature)}
+                                                                onCheckedChange={() => toggleEffectFeature(feature)}
+                                                            />
+                                                            <span className="ml-1">{feature}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                                {selectedEffectFeatures.length === 0 && (
+                                                    <div className="text-center text-yellow-600 dark:text-yellow-400 mt-4 text-xs">
+                                                        ⚠️ No features selected. Will use first feature ({selectedTrainColumns[0]}) by default.
+                                                    </div>
+                                                )}
+                                                {selectedEffectFeatures.length > 0 && (
+                                                    <div className="text-center text-green-600 dark:text-green-400 mt-4 text-xs">
+                                                        ✓ Will generate plots for: {selectedEffectFeatures.join(', ')}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
 
                         </TabsContent>

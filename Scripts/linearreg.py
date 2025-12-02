@@ -112,6 +112,8 @@ parser.add_argument("--winsor_upper", type=int, help="Upper percentile for Winso
 # ✅ Feature Scaling
 parser.add_argument("--feature_scaling", type=str, help="Selected feature scaling method")
 
+# ✅ Effect Features for Comparison
+parser.add_argument("--effect_features", type=str, help="Features to generate effect plots for (JSON array)")
 
 args = parser.parse_args()
 
@@ -127,6 +129,9 @@ selected_explorations = json.loads(args.selected_explorations)
 
 # ✅ Process Feature Scaling
 feature_scaling = args.feature_scaling if args.feature_scaling else None
+
+# ✅ Process Effect Features
+effect_features = json.loads(args.effect_features) if args.effect_features else None
 
 # Process selected_graphs argument into a list (if provided)
 selected_graphs = None
@@ -741,80 +746,91 @@ if selected_graphs is None or "Model Coefficients" in selected_graphs:
     generated_graphs.append(normalize_path(weight_plot_path))
     log_and_print(f"Model Coefficients plot saved to {weight_plot_path}")
 
-# ----- Effect Plot for a Selected Feature -----
+# ----- Effect Plot for Selected Features -----
 # (Also known as a Partial Dependence or Effect Plot)
 if selected_graphs is None or "Effect Plot" in selected_graphs:
-    selected_feature = existing_train_columns[0]
-    if np.issubdtype(df_train[selected_feature].dtype, np.number):
-        effect_plot_path = os.path.join(output_dir, "effect_plot.png")
+    # Determine which features to plot
+    features_to_plot = effect_features if effect_features else [existing_train_columns[0]]
     
-        # Create a range for the selected feature
-        x_vals = np.linspace(df_train[selected_feature].min(), df_train[selected_feature].max(), 100)
-    
-        # Create a baseline vector (mean for each feature) using the training set
-        baseline = X_train.mean(axis=0)
-        X_effect = np.tile(baseline, (100, 1))
-    
-        # Replace the column corresponding to the selected feature with the range of values
-        idx = existing_train_columns.index(selected_feature)
-        X_effect[:, idx] = x_vals
-    
-        # Scale the effect array using the same scaler
-        X_effect_scaled = scaler.transform(X_effect)
-        # Predict using the trained model
-        y_effect = model.predict(X_effect_scaled)
-    
-        plt.figure(figsize=(8, 6))
-        plt.plot(x_vals, y_effect, color='darkorange', lw=2)
-        plt.xlabel(f"{selected_feature}")
-        plt.ylabel(f"Predicted {output_column}")
-        plt.title(f"Effect of {selected_feature} on {output_column}")
-        plt.tight_layout()
-        plt.savefig(effect_plot_path)
-        plt.close()
-        generated_graphs.append(normalize_path(effect_plot_path))
-        log_and_print(f"Effect Plot for {selected_feature} saved to {effect_plot_path}")
-    else:
-        log_and_print(f"Selected feature '{selected_feature}' is not numeric. Skipping Effect Plot.")
+    for selected_feature in features_to_plot:
+        if selected_feature not in existing_train_columns:
+            log_and_print(f"Feature '{selected_feature}' not in train columns. Skipping.")
+            continue
+            
+        if np.issubdtype(df_train[selected_feature].dtype, np.number):
+            effect_plot_path = os.path.join(output_dir, f"effect_plot_{selected_feature}.png")
+        
+            # Create a range for the selected feature
+            x_vals = np.linspace(df_train[selected_feature].min(), df_train[selected_feature].max(), 100)
+        
+            # Create a baseline vector (mean for each feature) using the training set
+            baseline = X_train.mean(axis=0)
+            X_effect = np.tile(baseline, (100, 1))
+        
+            # Replace the column corresponding to the selected feature with the range of values
+            idx = existing_train_columns.index(selected_feature)
+            X_effect[:, idx] = x_vals
+        
+            # Scale the effect array using the same scaler
+            X_effect_scaled = scaler.transform(X_effect)
+            # Predict using the trained model
+            y_effect = model.predict(X_effect_scaled)
+        
+            plt.figure(figsize=(8, 6))
+            plt.plot(x_vals, y_effect, color='darkorange', lw=2)
+            plt.xlabel(f"{selected_feature}")
+            plt.ylabel(f"Predicted {output_column}")
+            plt.title(f"Effect of {selected_feature} on {output_column}")
+            plt.tight_layout()
+            plt.savefig(effect_plot_path)
+            plt.close()
+            generated_graphs.append(normalize_path(effect_plot_path))
+            log_and_print(f"Effect Plot for {selected_feature} saved to {effect_plot_path}")
+        else:
+            log_and_print(f"Selected feature '{selected_feature}' is not numeric. Skipping Effect Plot.")
 
 
-
-selected_feature = existing_train_columns[0]
-# Create bins for the selected feature (using original, unscaled values)
-feature_vals = df_train[selected_feature]
 
 # ----- Mean Effect Plot -----
 if selected_graphs is None or "Mean Effect Plot" in selected_graphs:
+    features_to_plot = effect_features if effect_features else [existing_train_columns[0]]
     
-    bins = np.linspace(feature_vals.min(), feature_vals.max(), 20)
-    bin_indices = np.digitize(feature_vals, bins)
-    mean_effect = []
-    bin_centers = []
-    for b in np.unique(bin_indices):
-        # Compute the center of the bin
-        bin_center = bins[b-1] + (bins[1]-bins[0]) / 2
-        bin_centers.append(bin_center)
-        # Create a baseline vector from X_train (mean values)
-        baseline = X_train.mean(axis=0)
-        X_effect = np.tile(baseline, (1, 1))
-        idx = existing_train_columns.index(selected_feature)
-        X_effect[0, idx] = bin_center
-        X_effect_df = pd.DataFrame(X_effect, columns=existing_train_columns)
-        X_effect_scaled = scaler.transform(X_effect_df)
-        y_eff = model.predict(X_effect_scaled)
-        mean_effect.append(y_eff[0])
+    for selected_feature in features_to_plot:
+        if selected_feature not in existing_train_columns:
+            continue
+            
+        # Create bins for the selected feature (using original, unscaled values)
+        feature_vals = df_train[selected_feature]
+        
+        bins = np.linspace(feature_vals.min(), feature_vals.max(), 20)
+        bin_indices = np.digitize(feature_vals, bins)
+        mean_effect = []
+        bin_centers = []
+        for b in np.unique(bin_indices):
+            # Compute the center of the bin
+            bin_center = bins[b-1] + (bins[1]-bins[0]) / 2
+            bin_centers.append(bin_center)
+            # Create a baseline vector from X_train (mean values)
+            baseline = X_train.mean(axis=0)
+            X_effect = np.tile(baseline, (1, 1))
+            idx = existing_train_columns.index(selected_feature)
+            X_effect[0, idx] = bin_center
+            X_effect_df = pd.DataFrame(X_effect, columns=existing_train_columns)
+            X_effect_scaled = scaler.transform(X_effect_df)
+            y_eff = model.predict(X_effect_scaled)
+            mean_effect.append(y_eff[0])
 
-    mean_effect_plot_path = os.path.join(output_dir, "mean_effect_plot.png")
-    plt.figure(figsize=(8,6))
-    plt.plot(bin_centers, mean_effect, marker='o', linestyle='-')
-    plt.xlabel(selected_feature)
-    plt.ylabel(f"Mean Predicted {output_column}")
-    plt.title(f"Mean Effect Plot for {selected_feature}")
-    plt.tight_layout()
-    plt.savefig(mean_effect_plot_path)
-    plt.close()
-    generated_graphs.append(normalize_path(mean_effect_plot_path))
-    log_and_print(f"Mean Effect Plot saved to {mean_effect_plot_path}")
+        mean_effect_plot_path = os.path.join(output_dir, f"mean_effect_plot_{selected_feature}.png")
+        plt.figure(figsize=(8,6))
+        plt.plot(bin_centers, mean_effect, marker='o', linestyle='-')
+        plt.xlabel(selected_feature)
+        plt.ylabel(f"Mean Predicted {output_column}")
+        plt.title(f"Mean Effect Plot for {selected_feature}")
+        plt.tight_layout()
+        plt.savefig(mean_effect_plot_path)
+        plt.close()
+        generated_graphs.append(normalize_path(mean_effect_plot_path))
+        log_and_print(f"Mean Effect Plot for {selected_feature} saved to {mean_effect_plot_path}")
 
 
 
@@ -822,44 +838,56 @@ if selected_graphs is None or "Mean Effect Plot" in selected_graphs:
 
 X_train_full_scaled = scaler.transform(X_train)  # X_train from df_train (full set)
 y_pred_full = model.predict(X_train_full_scaled)
-plt.figure(figsize=(8,6))
+
 # ----- Individual Effect Plot -----
 if selected_graphs is None or "Individual Effect Plot" in selected_graphs:
-    # Generate predictions on the full cleaned training set
-    plt.scatter(df_train[selected_feature].values, y_pred_full, alpha=0.5)
-    plt.xlabel(selected_feature)
-    plt.ylabel(f"Predicted {output_column}")
-    plt.title(f"Individual Effect Plot for {selected_feature}")
-    plt.tight_layout()
-    individual_effect_plot_path = os.path.join(output_dir, "individual_effect_plot.png")
-    plt.savefig(individual_effect_plot_path)
-    plt.close()
-    generated_graphs.append(normalize_path(individual_effect_plot_path))
-    log_and_print(f"Individual Effect Plot saved to {individual_effect_plot_path}")
+    features_to_plot = effect_features if effect_features else [existing_train_columns[0]]
+    
+    for selected_feature in features_to_plot:
+        if selected_feature not in existing_train_columns:
+            continue
+            
+        # Generate predictions on the full cleaned training set
+        plt.figure(figsize=(8,6))
+        plt.scatter(df_train[selected_feature].values, y_pred_full, alpha=0.5)
+        plt.xlabel(selected_feature)
+        plt.ylabel(f"Predicted {output_column}")
+        plt.title(f"Individual Effect Plot for {selected_feature}")
+        plt.tight_layout()
+        individual_effect_plot_path = os.path.join(output_dir, f"individual_effect_plot_{selected_feature}.png")
+        plt.savefig(individual_effect_plot_path)
+        plt.close()
+        generated_graphs.append(normalize_path(individual_effect_plot_path))
+        log_and_print(f"Individual Effect Plot for {selected_feature} saved to {individual_effect_plot_path}")
 
 
 
 
 # ----- Trend Effect Plot -----
 if selected_graphs is None or "Trend Effect Plot" in selected_graphs:
-    selected_feature = existing_train_columns[0]
-    # Sort instances by the selected feature using the full training set (df_train)
-    sorted_indices = np.argsort(df_train[selected_feature].values)
-    sorted_feature = df_train[selected_feature].values[sorted_indices]
-    # Use the full training set predictions for plotting
-    sorted_predictions = model.predict(X_train_full_scaled)[sorted_indices]
+    features_to_plot = effect_features if effect_features else [existing_train_columns[0]]
+    
+    for selected_feature in features_to_plot:
+        if selected_feature not in existing_train_columns:
+            continue
+            
+        # Sort instances by the selected feature using the full training set (df_train)
+        sorted_indices = np.argsort(df_train[selected_feature].values)
+        sorted_feature = df_train[selected_feature].values[sorted_indices]
+        # Use the full training set predictions for plotting
+        sorted_predictions = model.predict(X_train_full_scaled)[sorted_indices]
 
-    trend_effect_plot_path = os.path.join(output_dir, "trend_effect_plot.png")
-    plt.figure(figsize=(8,6))
-    plt.plot(sorted_feature, sorted_predictions, color='purple', lw=2)
-    plt.xlabel(selected_feature)
-    plt.ylabel(f"Predicted {output_column}")
-    plt.title(f"Trend Effect Plot for {selected_feature}")
-    plt.tight_layout()
-    plt.savefig(trend_effect_plot_path)
-    plt.close()
-    generated_graphs.append(normalize_path(trend_effect_plot_path))
-    log_and_print(f"Trend Effect Plot saved to {trend_effect_plot_path}")
+        trend_effect_plot_path = os.path.join(output_dir, f"trend_effect_plot_{selected_feature}.png")
+        plt.figure(figsize=(8,6))
+        plt.plot(sorted_feature, sorted_predictions, color='purple', lw=2)
+        plt.xlabel(selected_feature)
+        plt.ylabel(f"Predicted {output_column}")
+        plt.title(f"Trend Effect Plot for {selected_feature}")
+        plt.tight_layout()
+        plt.savefig(trend_effect_plot_path)
+        plt.close()
+        generated_graphs.append(normalize_path(trend_effect_plot_path))
+        log_and_print(f"Trend Effect Plot for {selected_feature} saved to {trend_effect_plot_path}")
 
 
 

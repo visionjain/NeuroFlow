@@ -33,6 +33,9 @@ export async function GET(req: NextRequest) {
     // ✅ Selected Data Exploration Techniques
     const selected_explorations = searchParams.get("available_Explorations");
 
+    // ✅ Effect Features for Comparison
+    const effect_features = searchParams.get("effect_features");
+
     if (!train_csv_path) {
       return new Response("Missing required parameter: train_csv_path", { status: 400 });
     }
@@ -84,6 +87,11 @@ export async function GET(req: NextRequest) {
     // ✅ Add Data Exploration Techniques
     if (selected_explorations) {
       args.push("--selected_explorations", selected_explorations);
+    }
+
+    // ✅ Add Effect Features
+    if (effect_features) {
+      args.push("--effect_features", effect_features);
     }
 
     // ✅ Add Outlier Detection Parameters if enabled
