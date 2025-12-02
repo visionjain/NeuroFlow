@@ -45,6 +45,7 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
     const [selectedFeatureScaling, setSelectedFeatureScaling] = useState<string | null>(null);
     const [generatedGraphs, setGeneratedGraphs] = useState<string[]>([]);
     const [selectedEffectFeatures, setSelectedEffectFeatures] = useState<string[]>([]);
+    const [zoomedGraph, setZoomedGraph] = useState<string | null>(null);
 
     const availableFeatureScaling = [
         "Min-Max Scaling",
@@ -966,11 +967,33 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
 
                         {/* Terminal Tab Content */}
                         <TabsContent value="terminal">
-                            <div
-                                ref={terminalRef}
-                                className="border border-[rgb(61,68,77)] h-[700px] dark:bg-[#0E0E0E] bg-[#E6E6E6] rounded-xl ml-4 mr-4 text-sm p-4 overflow-y-auto"
-                            >
-                                <pre className="whitespace-pre-wrap">{logs || "Terminal Output will be shown here."}</pre>
+                            <div className="ml-4 mr-4">
+                                <div
+                                    ref={terminalRef}
+                                    className="border border-[rgb(61,68,77)] h-[640px] dark:bg-[#0E0E0E] bg-[#E6E6E6] rounded-xl text-sm p-4 overflow-y-auto"
+                                >
+                                    <pre className="whitespace-pre-wrap">{logs || "Terminal Output will be shown here."}</pre>
+                                </div>
+                                {logs && !isRunning && (
+                                    <div className="mt-4 flex justify-end">
+                                        <Button
+                                            onClick={() => {
+                                                const blob = new Blob([logs], { type: 'text/plain' });
+                                                const url = URL.createObjectURL(blob);
+                                                const a = document.createElement('a');
+                                                a.href = url;
+                                                a.download = `${projectName}_logs_${new Date().toISOString().split('T')[0]}.txt`;
+                                                document.body.appendChild(a);
+                                                a.click();
+                                                document.body.removeChild(a);
+                                                URL.revokeObjectURL(url);
+                                            }}
+                                            className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg"
+                                        >
+                                            📥 Download Logs
+                                        </Button>
+                                    </div>
+                                )}
                             </div>
                         </TabsContent>
                         <TabsContent value="graphs">
@@ -981,12 +1004,13 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
                                             const graphName = graphPath.split(/[\/\\]/).pop()?.replace('.png', '').replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
                                             const imageUrl = `/api/users/graphs?path=${encodeURIComponent(graphPath)}`;
                                             return (
-                                                <div key={index} className="dark:bg-[#212628] bg-white rounded-lg p-3 shadow-lg">
+                                                <div key={index} className="dark:bg-[#212628] bg-white rounded-lg p-3 shadow-lg relative group">
                                                     <h3 className="text-sm font-semibold mb-2 text-center">{graphName}</h3>
                                                     <img 
                                                         src={imageUrl} 
                                                         alt={graphName || `Graph ${index + 1}`}
-                                                        className="w-full h-auto rounded border border-gray-300 dark:border-gray-600"
+                                                        className="w-full h-auto rounded border border-gray-300 dark:border-gray-600 cursor-pointer hover:opacity-90 transition"
+                                                        onClick={() => setZoomedGraph(imageUrl)}
                                                         onError={(e) => {
                                                             const target = e.target as HTMLImageElement;
                                                             target.style.display = 'none';
@@ -999,6 +1023,33 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
                                                             }
                                                         }}
                                                     />
+                                                    <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
+                                                        <button
+                                                            onClick={() => setZoomedGraph(imageUrl)}
+                                                            className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded text-xs shadow-lg"
+                                                            title="Zoom"
+                                                        >
+                                                            🔍
+                                                        </button>
+                                                        <button
+                                                            onClick={async () => {
+                                                                const response = await fetch(imageUrl);
+                                                                const blob = await response.blob();
+                                                                const url = URL.createObjectURL(blob);
+                                                                const a = document.createElement('a');
+                                                                a.href = url;
+                                                                a.download = graphPath.split(/[\/\\]/).pop() || 'graph.png';
+                                                                document.body.appendChild(a);
+                                                                a.click();
+                                                                document.body.removeChild(a);
+                                                                URL.revokeObjectURL(url);
+                                                            }}
+                                                            className="bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded text-xs shadow-lg"
+                                                            title="Download"
+                                                        >
+                                                            📥
+                                                        </button>
+                                                    </div>
                                                 </div>
                                             );
                                         })}
@@ -1014,21 +1065,106 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
                                     </div>
                                 )}
                             </div>
+
+                            {/* Zoom Modal */}
+                            {zoomedGraph && (
+                                <div 
+                                    className="fixed inset-0 bg-black bg-opacity-80 z-50 flex items-center justify-center p-4"
+                                    onClick={() => setZoomedGraph(null)}
+                                >
+                                    <div className="relative max-w-7xl max-h-[90vh] overflow-auto">
+                                        <button
+                                            onClick={() => setZoomedGraph(null)}
+                                            className="absolute top-4 right-4 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-lg font-bold shadow-lg z-10"
+                                        >
+                                            ✕ Close
+                                        </button>
+                                        <img 
+                                            src={zoomedGraph} 
+                                            alt="Zoomed Graph"
+                                            className="max-w-full h-auto rounded-lg shadow-2xl"
+                                            onClick={(e) => e.stopPropagation()}
+                                        />
+                                    </div>
+                                </div>
+                            )}
                         </TabsContent>
 
                         <TabsContent value="result">
-                            <div className="flex flex-col items-center justify-center h-[700px] dark:bg-[#0E0E0E] bg-[#E6E6E6] rounded-xl ml-4 mr-4 text-center p-4">
+                            <div className="flex flex-col items-center justify-center h-[700px] dark:bg-[#0E0E0E] bg-[#E6E6E6] rounded-xl ml-4 mr-4 p-8">
                                 {results ? (
-                                    results
-                                        .split("\n")
-                                        .filter((line) => line.trim() !== "")
-                                        .map((line, index) => (
-                                            <div key={index} className="text-5xl font-bold mb-4">
-                                                {line}
+                                    <div className="w-full max-w-4xl space-y-6">
+                                        <div className="text-center mb-8">
+                                            <h2 className="text-4xl font-bold mb-2 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                                                📊 Model Performance Metrics
+                                            </h2>
+                                            <p className="text-sm text-gray-500 dark:text-gray-400">Generated on {new Date().toLocaleString()}</p>
+                                        </div>
+                                        
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                            {results
+                                                .split("\n")
+                                                .filter((line) => line.trim() !== "")
+                                                .map((line, index) => {
+                                                    const parts = line.split(":");
+                                                    const label = parts[0]?.trim();
+                                                    const value = parts[1]?.trim();
+                                                    
+                                                    // Determine icon and color based on metric
+                                                    let icon = "📈";
+                                                    let bgColor = "from-blue-500 to-blue-600";
+                                                    
+                                                    if (label?.includes("Accuracy")) {
+                                                        icon = "🎯";
+                                                        bgColor = "from-green-500 to-green-600";
+                                                    } else if (label?.includes("R-squared")) {
+                                                        icon = "📊";
+                                                        bgColor = "from-purple-500 to-purple-600";
+                                                    } else if (label?.includes("Error") || label?.includes("MSE")) {
+                                                        icon = "⚠️";
+                                                        bgColor = "from-orange-500 to-orange-600";
+                                                    }
+                                                    
+                                                    return (
+                                                        <div 
+                                                            key={index} 
+                                                            className={`bg-gradient-to-br ${bgColor} p-6 rounded-2xl shadow-xl text-white transform hover:scale-105 transition-transform duration-200`}
+                                                        >
+                                                            <div className="flex items-center justify-between mb-3">
+                                                                <span className="text-4xl">{icon}</span>
+                                                                <div className="bg-white bg-opacity-20 px-3 py-1 rounded-full text-xs font-semibold">
+                                                                    Metric {index + 1}
+                                                                </div>
+                                                            </div>
+                                                            <div className="text-lg font-medium mb-2 opacity-90">
+                                                                {label}
+                                                            </div>
+                                                            <div className="text-4xl font-bold">
+                                                                {value || "N/A"}
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                        </div>
+                                        
+                                        {results.toLowerCase().includes("skipping") && (
+                                            <div className="mt-6 p-4 bg-yellow-100 dark:bg-yellow-900 border-l-4 border-yellow-500 rounded-lg">
+                                                <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                                                    ℹ️ Note: Some metrics are not applicable for this type of analysis.
+                                                </p>
                                             </div>
-                                        ))
+                                        )}
+                                    </div>
                                 ) : (
-                                    <div className="text-4xl font-bold">Results will be displayed here.</div>
+                                    <div className="text-center space-y-4">
+                                        <div className="text-6xl mb-4">📊</div>
+                                        <h3 className="text-3xl font-bold bg-gradient-to-r from-gray-600 to-gray-800 dark:from-gray-300 dark:to-gray-500 bg-clip-text text-transparent">
+                                            Waiting for Results
+                                        </h3>
+                                        <p className="text-gray-500 dark:text-gray-400">
+                                            Run the model to see performance metrics here
+                                        </p>
+                                    </div>
                                 )}
                             </div>
                         </TabsContent>
