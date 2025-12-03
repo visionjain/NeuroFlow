@@ -1276,12 +1276,13 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
                                                     const lines = results.split("\n");
                                                     const hasCV = results.includes("COMPREHENSIVE RESULTS TABLE");
                                                     
-                                                    // For CV: Extract table rows
-                                                    const tableLines = lines.filter(line => 
-                                                        line.includes("CV Fold") || 
-                                                        line.includes("Final Model") ||
-                                                        (line.includes("R² Score") && line.includes("MSE"))
-                                                    );
+                                                    // For CV: Extract table rows (exclude separator lines)
+                                                    const tableLines = lines.filter(line => {
+                                                        const trimmed = line.trim();
+                                                        // Only include lines with actual data, not separators
+                                                        return (trimmed.startsWith("CV Fold") || trimmed.startsWith("Final Model")) && 
+                                                               !line.match(/^-+$/);
+                                                    });
                                                     
                                                     // Extract CV Statistics
                                                     const cvStatsLines = lines.filter(line => 
@@ -1296,11 +1297,16 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
                                                         // Clean the line and split by multiple spaces
                                                         const cleanLine = line.replace(/-+/g, '').trim();
                                                         
-                                                        if (cleanLine.includes("R² Score") && !cleanLine.includes("Mean")) {
-                                                            // Handle both "R² Score: value" and "R² Score    value" formats
+                                                        if (cleanLine.includes("R² Score") && !cleanLine.includes("Mean") && !cleanLine.includes("Adjusted")) {
                                                             const parts = cleanLine.split(/\s{2,}|\s*:\s*/);
                                                             if (parts.length >= 2) {
                                                                 metricsObj.r2 = parts[1].trim();
+                                                            }
+                                                        }
+                                                        if (cleanLine.includes("Adjusted R² Score")) {
+                                                            const parts = cleanLine.split(/\s{2,}|\s*:\s*/);
+                                                            if (parts.length >= 2) {
+                                                                metricsObj.adj_r2 = parts[parts.length - 1].trim();
                                                             }
                                                         }
                                                         if (cleanLine.includes("Mean Squared Error")) {
@@ -1309,7 +1315,25 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
                                                                 metricsObj.mse = parts[parts.length - 1].trim();
                                                             }
                                                         }
-                                                        if (cleanLine.includes("Accuracy")) {
+                                                        if (cleanLine.includes("Mean Absolute Error") && !cleanLine.includes("Percentage")) {
+                                                            const parts = cleanLine.split(/\s{2,}|\s*:\s*/);
+                                                            if (parts.length >= 2) {
+                                                                metricsObj.mae = parts[parts.length - 1].trim();
+                                                            }
+                                                        }
+                                                        if (cleanLine.includes("Root Mean Squared Error")) {
+                                                            const parts = cleanLine.split(/\s{2,}|\s*:\s*/);
+                                                            if (parts.length >= 2) {
+                                                                metricsObj.rmse = parts[parts.length - 1].trim();
+                                                            }
+                                                        }
+                                                        if (cleanLine.includes("Mean Absolute Percentage Error")) {
+                                                            const parts = cleanLine.split(/\s{2,}|\s*:\s*/);
+                                                            if (parts.length >= 2) {
+                                                                metricsObj.mape = parts[parts.length - 1].trim();
+                                                            }
+                                                        }
+                                                        if (cleanLine.includes("Accuracy") && !cleanLine.includes("Mean")) {
                                                             const parts = cleanLine.split(/\s{2,}|\s*:\s*/);
                                                             if (parts.length >= 2) {
                                                                 metricsObj.accuracy = parts[1].trim();
@@ -1350,18 +1374,24 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
                                                                         <table className="w-full">
                                                                         <thead className="bg-gradient-to-r from-gray-700 to-gray-800 dark:from-gray-800 dark:to-gray-900">
                                                                             <tr>
-                                                                                <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Model</th>
-                                                                                <th className="px-6 py-4 text-center text-xs font-bold text-white uppercase tracking-wider">R² Score</th>
-                                                                                <th className="px-6 py-4 text-center text-xs font-bold text-white uppercase tracking-wider">MSE</th>
+                                                                                <th className="px-4 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Model</th>
+                                                                                <th className="px-3 py-4 text-center text-xs font-bold text-white uppercase tracking-wider">R²</th>
+                                                                                <th className="px-3 py-4 text-center text-xs font-bold text-white uppercase tracking-wider">Adj R²</th>
+                                                                                <th className="px-3 py-4 text-center text-xs font-bold text-white uppercase tracking-wider">MSE</th>
+                                                                                <th className="px-3 py-4 text-center text-xs font-bold text-white uppercase tracking-wider">MAE</th>
+                                                                                <th className="px-3 py-4 text-center text-xs font-bold text-white uppercase tracking-wider">RMSE</th>
+                                                                                <th className="px-3 py-4 text-center text-xs font-bold text-white uppercase tracking-wider">MAPE</th>
                                                                                 {tableLines[0]?.includes("Accuracy") && (
-                                                                                    <th className="px-6 py-4 text-center text-xs font-bold text-white uppercase tracking-wider">Accuracy</th>
+                                                                                    <th className="px-3 py-4 text-center text-xs font-bold text-white uppercase tracking-wider">Accuracy</th>
                                                                                 )}
-                                                                                <th className="px-6 py-4 text-center text-xs font-bold text-white uppercase tracking-wider">Train Size</th>
+                                                                                <th className="px-3 py-4 text-center text-xs font-bold text-white uppercase tracking-wider">Train</th>
                                                                             </tr>
                                                                         </thead>
                                                                         <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                                                                             {modelRows.map((row, idx) => {
-                                                                                const parts = row.split(/\s{2,}/);
+                                                                                // Clean the row - remove separator dashes and trim
+                                                                                const cleanRow = row.replace(/-+/g, '').trim();
+                                                                                const parts = cleanRow.split(/\s+/).filter(p => p.length > 0);
                                                                                 const isFinal = row.includes("Final Model");
                                                                                 const rowBg = isFinal 
                                                                                     ? "bg-gradient-to-r from-green-50 to-blue-50 dark:from-green-900/20 dark:to-blue-900/20" 
@@ -1369,36 +1399,70 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
                                                                                         ? "bg-gray-50 dark:bg-gray-800/50" 
                                                                                         : "bg-white dark:bg-gray-900/50";
                                                                                 
+                                                                                // Determine model name and where metrics start
+                                                                                let modelName = '';
+                                                                                let metricsStart = 0;
+                                                                                
+                                                                                if (isFinal) {
+                                                                                    // "Final Model (Full)" - first 3 parts
+                                                                                    modelName = parts.slice(0, 3).join(' ');
+                                                                                    metricsStart = 3;
+                                                                                } else {
+                                                                                    // "CV Fold 1" - first 3 parts
+                                                                                    modelName = parts.slice(0, 3).join(' ');
+                                                                                    metricsStart = 3;
+                                                                                }
+                                                                                
                                                                                 return (
                                                                                     <tr key={idx} className={`${rowBg} hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors`}>
-                                                                                        <td className="px-6 py-4 whitespace-nowrap">
+                                                                                        <td className="px-4 py-4 whitespace-nowrap">
                                                                                             <div className="flex items-center gap-2">
-                                                                                                {isFinal && <span className="text-2xl">⭐</span>}
-                                                                                                <span className={`font-semibold ${isFinal ? 'text-green-600 dark:text-green-400' : 'text-gray-900 dark:text-gray-100'}`}>
-                                                                                                    {parts[0]?.trim()}
+                                                                                                {isFinal && <span className="text-xl">⭐</span>}
+                                                                                                <span className={`font-semibold text-sm ${isFinal ? 'text-green-600 dark:text-green-400' : 'text-gray-900 dark:text-gray-100'}`}>
+                                                                                                    {modelName}
                                                                                                 </span>
                                                                                             </div>
                                                                                         </td>
-                                                                                        <td className="px-6 py-4 text-center">
-                                                                                            <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
-                                                                                                {parts[1]?.trim() || 'N/A'}
+                                                                                        <td className="px-3 py-4 text-center">
+                                                                                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
+                                                                                                {parts[metricsStart]?.trim() || 'N/A'}
                                                                                             </span>
                                                                                         </td>
-                                                                                        <td className="px-6 py-4 text-center">
-                                                                                            <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200">
-                                                                                                {parts[2]?.trim() || 'N/A'}
+                                                                                        <td className="px-3 py-4 text-center">
+                                                                                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200">
+                                                                                                {parts[metricsStart + 1]?.trim() || 'N/A'}
+                                                                                            </span>
+                                                                                        </td>
+                                                                                        <td className="px-3 py-4 text-center">
+                                                                                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200">
+                                                                                                {parts[metricsStart + 2]?.trim() || 'N/A'}
+                                                                                            </span>
+                                                                                        </td>
+                                                                                        <td className="px-3 py-4 text-center">
+                                                                                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
+                                                                                                {parts[metricsStart + 3]?.trim() || 'N/A'}
+                                                                                            </span>
+                                                                                        </td>
+                                                                                        <td className="px-3 py-4 text-center">
+                                                                                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">
+                                                                                                {parts[metricsStart + 4]?.trim() || 'N/A'}
+                                                                                            </span>
+                                                                                        </td>
+                                                                                        <td className="px-3 py-4 text-center">
+                                                                                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-pink-100 text-pink-800 dark:bg-pink-900 dark:text-pink-200">
+                                                                                                {parts[metricsStart + 5]?.trim() || 'N/A'}
                                                                                             </span>
                                                                                         </td>
                                                                                         {tableLines[0]?.includes("Accuracy") && (
-                                                                                            <td className="px-6 py-4 text-center">
-                                                                                                <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
-                                                                                                    {parts[3]?.trim() || 'N/A'}
+                                                                                            <td className="px-3 py-4 text-center">
+                                                                                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                                                                                                    {parts[metricsStart + 6]?.trim() || 'N/A'}
                                                                                                 </span>
                                                                                             </td>
                                                                                         )}
-                                                                                        <td className="px-6 py-4 text-center">
-                                                                                            <span className="text-sm text-gray-600 dark:text-gray-400 font-medium">
-                                                                                                {parts[tableLines[0]?.includes("Accuracy") ? 4 : 3]?.trim() || 'N/A'}
+                                                                                        <td className="px-3 py-4 text-center">
+                                                                                            <span className="text-xs text-gray-600 dark:text-gray-400 font-medium">
+                                                                                                {parts[tableLines[0]?.includes("Accuracy") ? metricsStart + 7 : metricsStart + 6]?.trim() || 'N/A'}
                                                                                             </span>
                                                                                         </td>
                                                                                     </tr>
@@ -1438,17 +1502,41 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
                                                                         <span className="text-3xl">🎯</span>
                                                                         {hasCV ? 'Final Model Performance' : 'Model Performance'}
                                                                     </h3>
-                                                                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                                                                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                                                                         {metricsObj.r2 && (
                                                                             <div className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 p-6 rounded-xl border border-purple-300 dark:border-purple-700">
                                                                                 <div className="text-xs text-purple-600 dark:text-purple-400 mb-1 font-semibold">R² Score</div>
                                                                                 <div className="text-3xl font-bold text-purple-700 dark:text-purple-300">{metricsObj.r2}</div>
                                                                             </div>
                                                                         )}
+                                                                        {metricsObj.adj_r2 && (
+                                                                            <div className="bg-gradient-to-br from-indigo-50 to-indigo-100 dark:from-indigo-900/20 dark:to-indigo-800/20 p-6 rounded-xl border border-indigo-300 dark:border-indigo-700">
+                                                                                <div className="text-xs text-indigo-600 dark:text-indigo-400 mb-1 font-semibold">Adjusted R²</div>
+                                                                                <div className="text-3xl font-bold text-indigo-700 dark:text-indigo-300">{metricsObj.adj_r2}</div>
+                                                                            </div>
+                                                                        )}
                                                                         {metricsObj.mse && (
                                                                             <div className="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20 p-6 rounded-xl border border-orange-300 dark:border-orange-700">
                                                                                 <div className="text-xs text-orange-600 dark:text-orange-400 mb-1 font-semibold">MSE</div>
                                                                                 <div className="text-3xl font-bold text-orange-700 dark:text-orange-300">{metricsObj.mse}</div>
+                                                                            </div>
+                                                                        )}
+                                                                        {metricsObj.mae && (
+                                                                            <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 dark:from-yellow-900/20 dark:to-yellow-800/20 p-6 rounded-xl border border-yellow-300 dark:border-yellow-700">
+                                                                                <div className="text-xs text-yellow-600 dark:text-yellow-400 mb-1 font-semibold">MAE</div>
+                                                                                <div className="text-3xl font-bold text-yellow-700 dark:text-yellow-300">{metricsObj.mae}</div>
+                                                                            </div>
+                                                                        )}
+                                                                        {metricsObj.rmse && (
+                                                                            <div className="bg-gradient-to-br from-red-50 to-red-100 dark:from-red-900/20 dark:to-red-800/20 p-6 rounded-xl border border-red-300 dark:border-red-700">
+                                                                                <div className="text-xs text-red-600 dark:text-red-400 mb-1 font-semibold">RMSE</div>
+                                                                                <div className="text-3xl font-bold text-red-700 dark:text-red-300">{metricsObj.rmse}</div>
+                                                                            </div>
+                                                                        )}
+                                                                        {metricsObj.mape && (
+                                                                            <div className="bg-gradient-to-br from-pink-50 to-pink-100 dark:from-pink-900/20 dark:to-pink-800/20 p-6 rounded-xl border border-pink-300 dark:border-pink-700">
+                                                                                <div className="text-xs text-pink-600 dark:text-pink-400 mb-1 font-semibold">MAPE</div>
+                                                                                <div className="text-3xl font-bold text-pink-700 dark:text-pink-300">{metricsObj.mape}</div>
                                                                             </div>
                                                                         )}
                                                                         {metricsObj.accuracy && (

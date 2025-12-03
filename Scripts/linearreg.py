@@ -86,7 +86,7 @@ import seaborn as sns
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LinearRegression
-from sklearn.metrics import mean_squared_error, r2_score, accuracy_score
+from sklearn.metrics import mean_squared_error, r2_score, accuracy_score, mean_absolute_error
 from category_encoders import TargetEncoder
 import joblib
 from scipy import stats
@@ -587,6 +587,16 @@ if enable_cv:
         y_fold_pred = fold_model.predict(X_fold_val)
         fold_r2 = r2_score(y_fold_val, y_fold_pred)
         fold_mse = mean_squared_error(y_fold_val, y_fold_pred)
+        fold_mae = mean_absolute_error(y_fold_val, y_fold_pred)
+        fold_rmse = np.sqrt(fold_mse)
+        
+        # Calculate Adjusted R²
+        n = len(y_fold_val)
+        p = X_fold_val.shape[1]
+        fold_adj_r2 = 1 - (1 - fold_r2) * (n - 1) / (n - p - 1) if n > p + 1 else fold_r2
+        
+        # Calculate MAPE (Mean Absolute Percentage Error)
+        fold_mape = np.mean(np.abs((y_fold_val - y_fold_pred) / np.where(y_fold_val != 0, y_fold_val, 1))) * 100
         
         # Calculate accuracy for binary classification
         fold_accuracy = None
@@ -604,6 +614,10 @@ if enable_cv:
             'model': fold_model,
             'r2_score': fold_r2,
             'mse': fold_mse,
+            'mae': fold_mae,
+            'rmse': fold_rmse,
+            'adj_r2': fold_adj_r2,
+            'mape': fold_mape,
             'accuracy': fold_accuracy,
             'train_size': len(train_idx),
             'val_size': len(val_idx)
@@ -829,6 +843,16 @@ else:
 # ====== Calculate Performance Metrics ======
 mse = mean_squared_error(y_test, y_pred)
 r2 = r2_score(y_test, y_pred)
+mae = mean_absolute_error(y_test, y_pred)
+rmse = np.sqrt(mse)
+
+# Calculate Adjusted R²
+n_samples = len(y_test)
+n_features = X_test_scaled.shape[1]
+adj_r2 = 1 - (1 - r2) * (n_samples - 1) / (n_samples - n_features - 1) if n_samples > n_features + 1 else r2
+
+# Calculate MAPE (Mean Absolute Percentage Error)
+mape = np.mean(np.abs((y_test - y_pred) / np.where(y_test != 0, y_test, 1))) * 100
 
 
 
@@ -1146,6 +1170,10 @@ if enable_cv and len(cv_fold_models) > 0:
             'filename': f"model_fold_{fold_info['fold']}.pkl",
             'r2_score': float(fold_info['r2_score']),
             'mse': float(fold_info['mse']),
+            'mae': float(fold_info['mae']),
+            'rmse': float(fold_info['rmse']),
+            'adj_r2': float(fold_info['adj_r2']),
+            'mape': float(fold_info['mape']),
             'accuracy': float(fold_info['accuracy']) if fold_info['accuracy'] is not None else None,
             'type': 'cv_fold',
             'fold_number': fold_info['fold'],
@@ -1159,6 +1187,10 @@ available_models.insert(0, {
     'filename': 'model.pkl',
     'r2_score': float(r2),
     'mse': float(mse),
+    'mae': float(mae),
+    'rmse': float(rmse),
+    'adj_r2': float(adj_r2),
+    'mape': float(mape),
     'accuracy': float(accuracy) if accuracy is not None else None,
     'type': 'final',
     'trained_on_full': enable_cv,
@@ -1212,47 +1244,55 @@ log_and_print("="*100)
 # Create a comprehensive results table
 if enable_cv and len(cv_fold_models) > 0:
     log_and_print("\n📊 COMPREHENSIVE RESULTS TABLE (All Models)")
-    log_and_print("-"*100)
+    log_and_print("-"*150)
     
     # Table header
     if is_classification:
-        header = f"{'Model':<35} {'R² Score':<12} {'MSE':<15} {'Accuracy':<12} {'Train Size':<12}"
+        header = f"{'Model':<25} {'R²':<10} {'Adj R²':<10} {'MSE':<12} {'MAE':<12} {'RMSE':<12} {'MAPE':<10} {'Accuracy':<12} {'Train':<8}"
     else:
-        header = f"{'Model':<35} {'R² Score':<12} {'MSE':<15} {'Train Size':<12}"
+        header = f"{'Model':<25} {'R²':<10} {'Adj R²':<10} {'MSE':<12} {'MAE':<12} {'RMSE':<12} {'MAPE':<10} {'Train':<8}"
     log_and_print(header)
-    log_and_print("-"*100)
+    log_and_print("-"*150)
     
     # CV Fold rows
     for fold_info in cv_fold_models:
         model_name = f"CV Fold {fold_info['fold']}"
         r2_str = f"{fold_info['r2_score']:.4f}"
+        adj_r2_str = f"{fold_info['adj_r2']:.4f}"
         mse_str = f"{fold_info['mse']:.4f}"
+        mae_str = f"{fold_info['mae']:.4f}"
+        rmse_str = f"{fold_info['rmse']:.4f}"
+        mape_str = f"{fold_info['mape']:.2f}%"
         train_size = fold_info['train_size']
         
         if is_classification and fold_info['accuracy'] is not None:
             acc_str = f"{fold_info['accuracy']:.4f}"
-            row = f"{model_name:<35} {r2_str:<12} {mse_str:<15} {acc_str:<12} {train_size:<12}"
+            row = f"{model_name:<25} {r2_str:<10} {adj_r2_str:<10} {mse_str:<12} {mae_str:<12} {rmse_str:<12} {mape_str:<10} {acc_str:<12} {train_size:<8}"
         else:
-            row = f"{model_name:<35} {r2_str:<12} {mse_str:<15} {train_size:<12}"
+            row = f"{model_name:<25} {r2_str:<10} {adj_r2_str:<10} {mse_str:<12} {mae_str:<12} {rmse_str:<12} {mape_str:<10} {train_size:<8}"
         log_and_print(row)
     
     # Separator before final model
-    log_and_print("-"*100)
+    log_and_print("-"*150)
     
     # Final model row (highlighted)
-    model_name = "Final Model (Full Data)"
+    model_name = "Final Model (Full)"
     r2_str = f"{r2:.4f}"
+    adj_r2_str = f"{adj_r2:.4f}"
     mse_str = f"{mse:.4f}"
+    mae_str = f"{mae:.4f}"
+    rmse_str = f"{rmse:.4f}"
+    mape_str = f"{mape:.2f}%"
     train_size = len(y_train_full)
     
     if is_classification and accuracy is not None:
         acc_str = f"{accuracy:.4f}"
-        row = f"{model_name:<35} {r2_str:<12} {mse_str:<15} {acc_str:<12} {train_size:<12}"
+        row = f"{model_name:<25} {r2_str:<10} {adj_r2_str:<10} {mse_str:<12} {mae_str:<12} {rmse_str:<12} {mape_str:<10} {acc_str:<12} {train_size:<8}"
     else:
-        row = f"{model_name:<35} {r2_str:<12} {mse_str:<15} {train_size:<12}"
-    log_and_print(row + " ⭐ BEST")
+        row = f"{model_name:<25} {r2_str:<10} {adj_r2_str:<10} {mse_str:<12} {mae_str:<12} {rmse_str:<12} {mape_str:<10} {train_size:<8}"
+    log_and_print(row + " ⭐")
     
-    log_and_print("="*100)
+    log_and_print("="*150)
     
     # Summary statistics
     log_and_print("\n📈 CV STATISTICS:")
@@ -1262,7 +1302,11 @@ if enable_cv and len(cv_fold_models) > 0:
     
     log_and_print(f"\n🎯 FINAL MODEL PERFORMANCE:")
     log_and_print(f"  R² Score: {r2:.4f}")
-    log_and_print(f"  MSE: {mse:.4f}")
+    log_and_print(f"  Adjusted R² Score: {adj_r2:.4f}")
+    log_and_print(f"  Mean Squared Error (MSE): {mse:.4f}")
+    log_and_print(f"  Mean Absolute Error (MAE): {mae:.4f}")
+    log_and_print(f"  Root Mean Squared Error (RMSE): {rmse:.4f}")
+    log_and_print(f"  Mean Absolute Percentage Error (MAPE): {mape:.2f}%")
     if is_classification and accuracy is not None:
         log_and_print(f"  Accuracy: {accuracy:.4f} ({accuracy*100:.2f}%)")
     log_and_print(f"  Training Samples: {len(y_train_full)} (100% of data)")
@@ -1274,18 +1318,22 @@ else:
     log_and_print("-"*100)
     
     if is_classification:
-        header = f"{'Metric':<30} {'Value':<20}"
+        header = f"{'Metric':<40} {'Value':<20}"
     else:
-        header = f"{'Metric':<30} {'Value':<20}"
+        header = f"{'Metric':<40} {'Value':<20}"
     log_and_print(header)
     log_and_print("-"*100)
     
-    log_and_print(f"{'R² Score':<30} {r2:.4f}")
-    log_and_print(f"{'Mean Squared Error (MSE)':<30} {mse:.4f}")
+    log_and_print(f"{'R² Score':<40} {r2:.4f}")
+    log_and_print(f"{'Adjusted R² Score':<40} {adj_r2:.4f}")
+    log_and_print(f"{'Mean Squared Error (MSE)':<40} {mse:.4f}")
+    log_and_print(f"{'Mean Absolute Error (MAE)':<40} {mae:.4f}")
+    log_and_print(f"{'Root Mean Squared Error (RMSE)':<40} {rmse:.4f}")
+    log_and_print(f"{'Mean Absolute Percentage Error (MAPE)':<40} {mape:.2f}%")
     if is_classification and accuracy is not None:
-        log_and_print(f"{'Accuracy':<30} {accuracy:.4f} ({accuracy*100:.2f}%)")
-    log_and_print(f"{'Training Samples':<30} {len(y_train)}")
-    log_and_print(f"{'Test Samples':<30} {len(y_test)}")
+        log_and_print(f"{'Accuracy':<40} {accuracy:.4f} ({accuracy*100:.2f}%)")
+    log_and_print(f"{'Training Samples':<40} {len(y_train)}")
+    log_and_print(f"{'Test Samples':<40} {len(y_test)}")
     log_and_print("="*100)
 
 # ====== Print Generated Graphs for Frontend ======
