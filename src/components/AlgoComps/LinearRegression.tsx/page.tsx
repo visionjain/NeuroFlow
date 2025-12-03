@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { useRouter } from "next/navigation";
 
 interface LinearRegressionProps {
     projectName: string;
@@ -17,6 +18,7 @@ interface LinearRegressionProps {
 }
 
 const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectName, projectAlgo, projectTime, projectId }) => {
+    const router = useRouter();
     const [trainFile, setTrainFile] = useState<string | null>(null);
     const [testFile, setTestFile] = useState<string | null>(null);
     const [datasetPath, setDatasetPath] = useState<string>("");
@@ -63,6 +65,7 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
     } | null>(null);
     const [availableModels, setAvailableModels] = useState<any[]>([]);
     const [selectedModel, setSelectedModel] = useState<string>("model.pkl");
+    const [missingFilesWarning, setMissingFilesWarning] = useState<string[]>([]);
 
     const availableFeatureScaling = [
         "Min-Max Scaling",
@@ -168,14 +171,39 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
                     setSelectedEffectFeatures(state.selectedEffectFeatures || []);
                     setLogs(state.logs || "");
                     setResults(state.results || "");
+                    // Server already filtered out missing graphs
                     setGeneratedGraphs(state.generatedGraphs || []);
                     setModelTrained(state.modelTrained ?? false);
                     setAvailableModels(state.availableModels || []);
                     
                     console.log("✅ Project state loaded successfully");
+                    
+                    // Combine critical missing files and warnings
+                    const allWarnings: string[] = [];
+                    
+                    if (data.warnings && data.warnings.length > 0) {
+                        console.warn(`⚠️ Dataset files missing:`, data.warnings);
+                        allWarnings.push(...data.warnings);
+                    }
+                    
+                    if (data.missingFiles && data.missingFiles.length > 0) {
+                        console.warn(`⚠️ Some files are missing:`, data.missingFiles);
+                        allWarnings.push(...data.missingFiles);
+                    }
+                    
+                    setMissingFilesWarning(allWarnings);
                 } else if (data.isCorrupted) {
-                    console.warn("⚠️ Project files are corrupted or missing:", data.missingFiles);
-                    alert(`Project data is corrupted. Missing files: ${data.missingFiles.join(", ")}\n\nPlease run the training again.`);
+                    console.error("❌ Project is corrupted:", data.missingFiles);
+                    alert(
+                        `❌ Project Data Corrupted\n\n` +
+                        `Critical files are missing:\n• ${data.missingFiles.join("\n• ")}\n\n` +
+                        `Please run the training again to restore the project.`
+                    );
+                    // Reset to clean state
+                    setModelTrained(false);
+                    setGeneratedGraphs([]);
+                    setResults("");
+                    setLogs("");
                 } else {
                     console.log("ℹ️ No saved state found - starting fresh");
                 }
@@ -688,7 +716,14 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
                 <Tabs defaultValue="home">
                     {/* Project Title & Tabs in One Row */}
                     <div className="flex items-center justify-between px-4 mt-2">
-                        <div className="font-bold">
+                        <div className="font-bold flex items-center gap-3">
+                            <Button
+                                onClick={() => router.push('/')}
+                                className="rounded-xl bg-blue-600 hover:bg-blue-700"
+                                title="Back to Home"
+                            >
+                                ← Back
+                            </Button>
                             <h1 className="italic text-2xl">
                                 {projectName} - {projectAlgo}{" "}
                                 <span className="text-sm lowercase">{projectTime}</span>
@@ -776,6 +811,46 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
                         </div>
 
                     </div>
+
+                    {/* Missing Files Warning Banner */}
+                    {missingFilesWarning.length > 0 && (
+                        <div className="mx-4 mt-2">
+                            <div className="bg-yellow-50 dark:bg-yellow-900/20 border-l-4 border-yellow-500 p-4 rounded-lg">
+                                <div className="flex items-start">
+                                    <div className="flex-shrink-0">
+                                        <span className="text-2xl">⚠️</span>
+                                    </div>
+                                    <div className="ml-3 flex-1">
+                                        <h3 className="text-sm font-semibold text-yellow-800 dark:text-yellow-300">
+                                            Some Project Files Are Missing
+                                        </h3>
+                                        <div className="mt-2 text-xs text-yellow-700 dark:text-yellow-400">
+                                            <p className="mb-1">The following files were not found:</p>
+                                            <ul className="list-disc list-inside space-y-1 ml-2">
+                                                {missingFilesWarning.map((file, idx) => (
+                                                    <li key={idx}>{file}</li>
+                                                ))}
+                                            </ul>
+                                            <p className="mt-3 font-medium">
+                                                {missingFilesWarning.some(f => f.includes('Dataset') || f.includes('file:')) 
+                                                    ? '📁 Dataset files missing - Results and predictions still work. Select dataset before re-training.'
+                                                    : missingFilesWarning.some(f => f.includes('graph'))
+                                                    ? '📊 Graph files missing - Other features work normally. Re-run training to regenerate graphs.'
+                                                    : '⚠️ Some features may not work correctly. Consider re-running the training.'
+                                                }
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={() => setMissingFilesWarning([])}
+                                        className="ml-4 text-yellow-600 hover:text-yellow-800 dark:text-yellow-400 dark:hover:text-yellow-200"
+                                    >
+                                        ✕
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
                     {/* Tabs Content (Stays Fixed in Place) */}
                     <div className="mt-2">
@@ -1390,8 +1465,13 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
                                                             const parent = target.parentElement;
                                                             if (parent) {
                                                                 const errorDiv = document.createElement('div');
-                                                                errorDiv.className = 'text-xs text-gray-500 p-2 break-all';
-                                                                errorDiv.textContent = `Saved at: ${graphPath}`;
+                                                                errorDiv.className = 'flex flex-col items-center justify-center p-6 bg-red-50 dark:bg-red-900/20 border-2 border-red-300 dark:border-red-700 rounded-lg text-center min-h-[200px]';
+                                                                errorDiv.innerHTML = `
+                                                                    <div class="text-4xl mb-2">🚫</div>
+                                                                    <div class="text-sm font-semibold text-red-600 dark:text-red-400 mb-2">File Not Found</div>
+                                                                    <div class="text-xs text-gray-600 dark:text-gray-400">The graph file has been deleted or moved</div>
+                                                                    <div class="text-xs text-gray-500 dark:text-gray-500 mt-2 break-all max-w-full">${graphPath.split(/[\/\\]/).pop()}</div>
+                                                                `;
                                                                 parent.appendChild(errorDiv);
                                                             }
                                                         }}

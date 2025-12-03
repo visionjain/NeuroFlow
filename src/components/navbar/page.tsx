@@ -60,9 +60,6 @@ const Nav: React.FC<NavProps> = ({ userDetails, userRole, loading }) => {
   const homeredirect = () => {
     router.push('/')
   }
-  const bookingredirect = () => {
-    router.push('/booking')
-  }
   const logout = async () => {
     try {
       await axios.get('/api/users/logout')
@@ -99,7 +96,8 @@ const Nav: React.FC<NavProps> = ({ userDetails, userRole, loading }) => {
         >
           <div className="h-16 flex justify-between items-center rounded-10xl">
             <div
-              className="ml-4 mr-4 italic text-3xl font-bold tracking-tight"
+              className="ml-4 mr-4 italic text-3xl font-bold tracking-tight cursor-pointer"
+              onClick={homeredirect}
               style={{
                 background: "linear-gradient(to right, #5082EE, #D76572)",
                 WebkitBackgroundClip: "text",
@@ -137,13 +135,6 @@ const Nav: React.FC<NavProps> = ({ userDetails, userRole, loading }) => {
                       onClick={profileredirect}
                     >
                       Profile
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator className="bg-black" />
-                    <DropdownMenuItem
-                      className="flex items-center justify-center dark:border-white/70 font-medium border border-gray-200 rounded-lg"
-                      onClick={bookingredirect}
-                    >
-                      My Bookings
                     </DropdownMenuItem>
                     <DropdownMenuSeparator className="bg-black" />
                     <DropdownMenuItem
@@ -204,7 +195,7 @@ const Nav: React.FC<NavProps> = ({ userDetails, userRole, loading }) => {
       <div className='h-14 relative z-50'>
         <div className={`fixed bg-white dark:bg-[#171717] top-0 left-0 right-0 ${darkMode && "dark"}`}>
           <div className='h-14 border-b border-black dark:border-white flex justify-between items-center'>
-            <div className='ml-4 mr-4 italic text-2xl font-bold tracking-tight'>
+            <div className='ml-4 mr-4 italic text-2xl font-bold tracking-tight cursor-pointer' onClick={homeredirect}>
               NeuroFlow.
             </div>
             <div className='flex items-center space-x-2 mr-4'>
@@ -261,7 +252,8 @@ const Nav: React.FC<NavProps> = ({ userDetails, userRole, loading }) => {
         >
           <div className="h-16 flex justify-between items-center rounded-10xl">
             <div
-              className="ml-4 mr-4 italic text-3xl font-bold tracking-tight"
+              className="ml-4 mr-4 italic text-3xl font-bold tracking-tight cursor-pointer"
+              onClick={homeredirect}
               style={{
                 background: "linear-gradient(to right, #5082EE, #D76572)",
                 WebkitBackgroundClip: "text",
