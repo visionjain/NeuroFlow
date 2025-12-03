@@ -532,6 +532,20 @@ y_train_full = y_train.copy()
 
 print("\nData Cleaning & Exploration Done. Check logs for details.")
 
+# ====== Create Model Factory Function (for CV and Learning Curve) ======
+from sklearn.linear_model import LinearRegression, Ridge, Lasso, ElasticNet
+
+def create_model():
+    """Factory function to create a model instance based on regularization type"""
+    if regularization_type == "ridge":
+        return Ridge(alpha=alpha_value)
+    elif regularization_type == "lasso":
+        return Lasso(alpha=alpha_value, max_iter=10000)
+    elif regularization_type == "elasticnet":
+        return ElasticNet(alpha=alpha_value, max_iter=10000)
+    else:
+        return LinearRegression()
+
 # ====== Cross-Validation on FULL Training Data (Before Split) ======
 cv_mean_r2 = None
 cv_std_r2 = None
@@ -541,23 +555,11 @@ cv_fold_models = []  # Store all CV fold models with their scores
 
 if enable_cv:
     from sklearn.model_selection import KFold, cross_val_score
-    from sklearn.linear_model import LinearRegression, Ridge, Lasso, ElasticNet
     
     log_and_print(f"\n{'='*80}")
     log_and_print(f"Performing {cv_folds}-Fold Cross-Validation on FULL Training Dataset...")
     log_and_print(f"Saving ALL fold models for user selection...")
     log_and_print(f"{'='*80}")
-    
-    # Create model factory function
-    def create_model():
-        if regularization_type == "ridge":
-            return Ridge(alpha=alpha_value)
-        elif regularization_type == "lasso":
-            return Lasso(alpha=alpha_value, max_iter=10000)
-        elif regularization_type == "elasticnet":
-            return ElasticNet(alpha=alpha_value, max_iter=10000)
-        else:
-            return LinearRegression()
     
     model_type_name = {
         "ridge": f"Ridge (α={alpha_value})",
@@ -776,11 +778,20 @@ if df_test_original is not None:
     
     
 else:
-    test_size = args.test_split_ratio if args.test_split_ratio else 0.2
-    X_train_scaled, X_test_scaled, y_train, y_test = train_test_split(
-        X_train_scaled, y_train, test_size=test_size, random_state=42
-    )
-    logging.info("Test Data Cleaning Completed via train_test_split.")
+    # Only perform train_test_split if CV is NOT enabled
+    # When CV is enabled, we keep the full dataset for training
+    if not enable_cv:
+        test_size = args.test_split_ratio if args.test_split_ratio else 0.2
+        X_train_scaled, X_test_scaled, y_train, y_test = train_test_split(
+            X_train_scaled, y_train, test_size=test_size, random_state=42
+        )
+        logging.info("Test Data Cleaning Completed via train_test_split.")
+    else:
+        # When CV is enabled without a separate test file, use the full dataset
+        # We'll create a test set from a small portion for evaluation purposes
+        X_test_scaled = X_train_scaled
+        y_test = y_train
+        logging.info("CV enabled without separate test file. Using full dataset for evaluation.")
 
 
 
@@ -788,26 +799,21 @@ else:
 
 
 # ====== Train Final Model ======
-# Import model classes
-from sklearn.linear_model import LinearRegression, Ridge, Lasso, ElasticNet
-
 log_and_print(f"\n{'='*80}")
 log_and_print("Training Final Model...")
 log_and_print(f"{'='*80}")
 
-# Select model based on regularization type
-if regularization_type == "ridge":
-    model = Ridge(alpha=alpha_value)
-    log_and_print(f"Model Type: Ridge Regression with alpha={alpha_value}")
-elif regularization_type == "lasso":
-    model = Lasso(alpha=alpha_value, max_iter=10000)
-    log_and_print(f"Model Type: Lasso Regression with alpha={alpha_value}")
-elif regularization_type == "elasticnet":
-    model = ElasticNet(alpha=alpha_value, max_iter=10000)
-    log_and_print(f"Model Type: ElasticNet Regression with alpha={alpha_value}")
-else:
-    model = LinearRegression()
-    log_and_print("Model Type: Standard Linear Regression (no regularization)")
+# Create model using factory function
+model = create_model()
+
+# Log model type
+model_type_name = {
+    "ridge": f"Ridge Regression with alpha={alpha_value}",
+    "lasso": f"Lasso Regression with alpha={alpha_value}",
+    "elasticnet": f"ElasticNet Regression with alpha={alpha_value}",
+    "none": "Standard Linear Regression (no regularization)"
+}[regularization_type]
+log_and_print(f"Model Type: {model_type_name}")
 
 # If CV is enabled, train on FULL dataset (best practice after CV validation)
 # If CV is disabled, train on the split training set
@@ -824,8 +830,14 @@ log_and_print("✓ Model Training Completed!")
 
 # ====== Make Predictions ======
 y_pred = model.predict(X_test_scaled)
-# After computing X_train_scaled on the full df_train:
-X_train_full_scaled = X_train_scaled.copy()
+
+# Set X_train_full_scaled for learning curves and other plots
+# When CV is enabled, X_train_scaled still contains the full dataset
+# When CV is disabled, we need to use the original full dataset saved earlier
+if not enable_cv:
+    X_train_full_scaled = X_train_full  # Use the original full dataset from line 530
+else:
+    X_train_full_scaled = X_train_scaled  # Already the full dataset when CV is enabled
 
 
 # Detect if classification or regression
@@ -861,10 +873,140 @@ mape = np.mean(np.abs((y_test - y_pred) / np.where(y_test != 0, y_test, 1))) * 1
 
 # ====== Plots ======
 
-# ====== Correlation & Basic Exploration ======
-
 # Compute residuals
 residuals = y_test - y_pred
+
+# ----- Learning Curve (Generated First) -----
+if selected_graphs is None or any(item.startswith("Learning Curve") for item in (selected_graphs if selected_graphs else [])) or selected_graphs is None:
+    from sklearn.model_selection import learning_curve, KFold
+    
+    log_and_print("Generating Learning Curves...")
+    
+    # Use the appropriate training data for learning curve
+    if enable_cv:
+        X_learning = X_train_full_scaled
+        # Convert pandas Series to numpy array to avoid indexing issues
+        y_learning = y_train_full.values if hasattr(y_train_full, 'values') else y_train_full
+    else:
+        # For non-CV, use the split training data (after train_test_split)
+        X_learning = X_train_scaled
+        # Convert pandas Series to numpy array to avoid indexing issues
+        y_learning = y_train.values if hasattr(y_train, 'values') else y_train
+    
+    log_and_print(f"Learning curve data: X shape = {X_learning.shape}, y shape = {y_learning.shape}")
+    
+    # Define training set sizes (from 10% to 100% in steps)
+    train_sizes = np.linspace(0.1, 1.0, 10)
+    
+    if enable_cv and cv_folds > 0 and (selected_graphs is None or "Learning Curve - All Folds" in selected_graphs):
+        # Generate individual learning curve for each CV fold
+        log_and_print(f"Generating {cv_folds} individual learning curves (one per CV fold)...")
+        
+        kf = KFold(n_splits=cv_folds, shuffle=True, random_state=42)
+        
+        for fold_idx, (train_idx, val_idx) in enumerate(kf.split(X_learning), 1):
+                
+            X_fold = X_learning[train_idx]
+            y_fold = y_learning[train_idx]  # y_learning is already a numpy array
+            
+            # Calculate learning curve for this fold
+            train_sizes_abs, train_scores, val_scores = learning_curve(
+                create_model(),
+                X_fold,
+                y_fold,
+                train_sizes=train_sizes,
+                cv=3,  # Inner CV
+                scoring='r2',
+                n_jobs=-1,
+                shuffle=True,
+                random_state=42
+            )
+            
+            # Calculate mean and std
+            train_mean = np.mean(train_scores, axis=1)
+            train_std = np.std(train_scores, axis=1)
+            val_mean = np.mean(val_scores, axis=1)
+            val_std = np.std(val_scores, axis=1)
+            
+            # Create the plot for this fold
+            learning_curve_path = os.path.join(output_dir, f"learning_curve_fold_{fold_idx}.png")
+            plt.figure(figsize=(10, 6))
+            
+            # Plot training scores
+            plt.plot(train_sizes_abs, train_mean, 'o-', color='blue', label='Training Score', linewidth=2)
+            plt.fill_between(train_sizes_abs, train_mean - train_std, train_mean + train_std, alpha=0.2, color='blue')
+            
+            # Plot validation scores
+            plt.plot(train_sizes_abs, val_mean, 'o-', color='red', label='Validation Score', linewidth=2)
+            plt.fill_between(train_sizes_abs, val_mean - val_std, val_mean + val_std, alpha=0.2, color='red')
+            
+            plt.xlabel('Training Set Size', fontsize=12)
+            plt.ylabel('R² Score', fontsize=12)
+            plt.title(f'Learning Curve - CV Fold {fold_idx}', fontsize=14, fontweight='bold')
+            plt.legend(loc='lower right', fontsize=10)
+            plt.grid(True, alpha=0.3)
+            plt.tight_layout()
+            plt.savefig(learning_curve_path, dpi=100, bbox_inches='tight')
+            plt.close()
+            
+            generated_graphs.append(normalize_path(learning_curve_path))
+            log_and_print(f"  Fold {fold_idx} Learning Curve saved: {learning_curve_path}")
+            log_and_print(f"    Training samples: {train_sizes_abs[0]:.0f} to {train_sizes_abs[-1]:.0f}")
+            log_and_print(f"    Final R² - Train: {train_mean[-1]:.4f} (± {train_std[-1]:.4f}), Val: {val_mean[-1]:.4f} (± {val_std[-1]:.4f})")
+    
+    # Always generate overall learning curve (aggregate or single)
+    if selected_graphs is None or "Learning Curve - Overall" in selected_graphs:
+        log_and_print("Generating overall learning curve...")
+        
+        # Calculate learning curve
+        train_sizes_abs, train_scores, val_scores = learning_curve(
+            create_model(),
+            X_learning,
+            y_learning,
+            train_sizes=train_sizes,
+            cv=cv_folds if enable_cv else 3,
+            scoring='r2',
+            n_jobs=-1,
+            shuffle=True,
+            random_state=42
+        )
+        
+        # Calculate mean and std
+        train_mean = np.mean(train_scores, axis=1)
+        train_std = np.std(train_scores, axis=1)
+        val_mean = np.mean(val_scores, axis=1)
+        val_std = np.std(val_scores, axis=1)
+        
+        # Create the plot
+        learning_curve_path = os.path.join(output_dir, "learning_curve_overall.png")
+        plt.figure(figsize=(10, 6))
+        
+        # Plot training scores
+        plt.plot(train_sizes_abs, train_mean, 'o-', color='blue', label='Training Score', linewidth=2)
+        plt.fill_between(train_sizes_abs, train_mean - train_std, train_mean + train_std, alpha=0.2, color='blue')
+        
+        # Plot validation scores
+        plt.plot(train_sizes_abs, val_mean, 'o-', color='red', label='Validation Score', linewidth=2)
+        plt.fill_between(train_sizes_abs, val_mean - val_std, val_mean + val_std, alpha=0.2, color='red')
+        
+        plt.xlabel('Training Set Size', fontsize=12)
+        plt.ylabel('R² Score', fontsize=12)
+        title = 'Learning Curve - Overall Performance' if enable_cv else 'Learning Curve - Model Performance'
+        plt.title(title, fontsize=14, fontweight='bold')
+        plt.legend(loc='lower right', fontsize=10)
+        plt.grid(True, alpha=0.3)
+        plt.tight_layout()
+        plt.savefig(learning_curve_path, dpi=100, bbox_inches='tight')
+        plt.close()
+        
+        generated_graphs.append(normalize_path(learning_curve_path))
+        log_and_print(f"Overall Learning Curve saved to {learning_curve_path}")
+        log_and_print(f"  Training samples range: {train_sizes_abs[0]:.0f} to {train_sizes_abs[-1]:.0f}")
+        log_and_print(f"  Final training R² score: {train_mean[-1]:.4f} (± {train_std[-1]:.4f})")
+        log_and_print(f"  Final validation R² score: {val_mean[-1]:.4f} (± {val_std[-1]:.4f})")
+
+
+# ====== Correlation & Basic Exploration ======
 
 # ====== Correlation Matrix ======
 # Only for numeric columns in the selected subset
@@ -1136,9 +1278,6 @@ if selected_graphs is None or "Shap Summary Plot" in selected_graphs:
         plt.close()
         generated_graphs.append(normalize_path(shap_summary_plot_path))
         log_and_print(f"SHAP Summary Plot saved to {shap_summary_plot_path}")
-
-
-
 
 
 

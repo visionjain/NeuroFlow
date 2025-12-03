@@ -93,18 +93,31 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
     ];
 
 
-    const availableGraphs = [
-        "Heatmap",
-        "Histogram Distribution",
-        "Histogram Residuals",
-        "Individual Effect Plot",
-        "Mean Effect Plot",
-        "Model Coefficients",
-        "Residual Plot",
-        "Shap Summary Plot",
-        "Trend Effect Plot",
-        "Box Plot",
-    ];
+    // Dynamically generate learning curve options based on CV settings
+    const getAvailableGraphs = () => {
+        // Add learning curve options at the top
+        const learningCurves = ["Learning Curve - Overall"];
+        if (enableCV) {
+            learningCurves.push("Learning Curve - All Folds");
+        }
+        
+        const restGraphs = [
+            "Heatmap",
+            "Histogram Distribution",
+            "Histogram Residuals",
+            "Individual Effect Plot",
+            "Mean Effect Plot",
+            "Model Coefficients",
+            "Residual Plot",
+            "Shap Summary Plot",
+            "Trend Effect Plot",
+            "Box Plot",
+        ];
+        
+        return [...learningCurves, ...restGraphs];
+    };
+    
+    const availableGraphs = getAvailableGraphs();
     const availableHandlingMissingValues = [
         "Mean Imputation",
         "Median Imputation",
