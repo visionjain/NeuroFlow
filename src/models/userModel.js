@@ -12,6 +12,54 @@ const ModelSchema = new mongoose.Schema({
   algorithm: {
     type: String,
     required: [true, "Please Choose a Algorithm"],
+  },
+  // Project state persistence
+  state: {
+    // File paths
+    trainFile: String,
+    testFile: String,
+    datasetPath: String,
+    
+    // Configuration
+    trainColumns: [String],
+    selectedTrainColumns: [String],
+    selectedOutputColumn: String,
+    testSplitRatio: String,
+    
+    // Preprocessing settings
+    selectedHandlingMissingValue: String,
+    removeDuplicates: Boolean,
+    enableOutlierDetection: Boolean,
+    outlierMethod: String,
+    zScoreThreshold: Number,
+    iqrLower: Number,
+    iqrUpper: Number,
+    winsorLower: Number,
+    winsorUpper: Number,
+    encodingMethod: String,
+    selectedFeatureScaling: String,
+    
+    // Model settings
+    regularizationType: String,
+    alphaValue: String,
+    enableCV: Boolean,
+    cvFolds: String,
+    
+    // Graph and exploration settings
+    selectedGraphs: [String],
+    selectedExplorations: [String],
+    selectedEffectFeatures: [String],
+    
+    // Results and outputs
+    logs: String,
+    results: String,
+    generatedGraphs: [String],
+    modelTrained: Boolean,
+    availableModels: mongoose.Schema.Types.Mixed,
+    
+    // Metadata
+    lastRunAt: Date,
+    isCorrupted: Boolean
   }
 });
 

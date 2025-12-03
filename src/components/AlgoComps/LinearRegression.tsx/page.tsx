@@ -13,9 +13,10 @@ interface LinearRegressionProps {
     projectName: string;
     projectAlgo: string;
     projectTime: string;
+    projectId: string;
 }
 
-const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectName, projectAlgo, projectTime }) => {
+const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectName, projectAlgo, projectTime, projectId }) => {
     const [trainFile, setTrainFile] = useState<string | null>(null);
     const [testFile, setTestFile] = useState<string | null>(null);
     const [datasetPath, setDatasetPath] = useState<string>("");
@@ -126,6 +127,65 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
         "Drop Rows with Missing Values",
     ];
 
+    // Load project state on mount
+    useEffect(() => {
+        const loadProjectState = async () => {
+            try {
+                const response = await fetch(`/api/users/projectstate?projectId=${projectId}`);
+                const data = await response.json();
+
+                console.log("📦 Received state data:", data);
+                
+                if (data.hasState && !data.isCorrupted) {
+                    const state = data.state;
+                    console.log("📂 Restoring state:", state);
+                    
+                    // Restore all state
+                    setTrainFile(state.trainFile || null);
+                    setTestFile(state.testFile || null);
+                    setDatasetPath(state.datasetPath || "");
+                    setTrainColumns(state.trainColumns || []);
+                    setSelectedTrainColumns(state.selectedTrainColumns || []);
+                    setSelectedOutputColumn(state.selectedOutputColumn || null);
+                    setTestSplitRatio(state.testSplitRatio || "0.2");
+                    setSelectedHandlingMissingValue(state.selectedHandlingMissingValue || "Drop Rows with Missing Values");
+                    setRemoveDuplicates(state.removeDuplicates ?? true);
+                    setEnableOutlierDetection(state.enableOutlierDetection ?? false);
+                    setOutlierMethod(state.outlierMethod || "");
+                    setZScoreThreshold(state.zScoreThreshold ?? 3.0);
+                    setIqrLower(state.iqrLower ?? 1.5);
+                    setIqrUpper(state.iqrUpper ?? 1.5);
+                    setWinsorLower(state.winsorLower ?? 1);
+                    setWinsorUpper(state.winsorUpper ?? 99);
+                    setEncodingMethod(state.encodingMethod || "one-hot");
+                    setSelectedFeatureScaling(state.selectedFeatureScaling || null);
+                    setRegularizationType(state.regularizationType || "none");
+                    setAlphaValue(state.alphaValue || "1.0");
+                    setEnableCV(state.enableCV ?? false);
+                    setCvFolds(state.cvFolds || "5");
+                    setSelectedGraphs(state.selectedGraphs || []);
+                    setSelectedExplorations(state.selectedExplorations || []);
+                    setSelectedEffectFeatures(state.selectedEffectFeatures || []);
+                    setLogs(state.logs || "");
+                    setResults(state.results || "");
+                    setGeneratedGraphs(state.generatedGraphs || []);
+                    setModelTrained(state.modelTrained ?? false);
+                    setAvailableModels(state.availableModels || []);
+                    
+                    console.log("✅ Project state loaded successfully");
+                } else if (data.isCorrupted) {
+                    console.warn("⚠️ Project files are corrupted or missing:", data.missingFiles);
+                    alert(`Project data is corrupted. Missing files: ${data.missingFiles.join(", ")}\n\nPlease run the training again.`);
+                } else {
+                    console.log("ℹ️ No saved state found - starting fresh");
+                }
+            } catch (error) {
+                console.error("Error loading project state:", error);
+            }
+        };
+
+        loadProjectState();
+    }, [projectId]);
 
     useEffect(() => {
         if (terminalRef.current) {
@@ -160,6 +220,13 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
                         setAvailableModels(data.available_models);
                         // Set default to final model
                         setSelectedModel("model.pkl");
+                        
+                        // Save state again now that we have available models
+                        // Small delay to ensure state is updated
+                        setTimeout(() => {
+                            console.log("💾 Updating state with available models");
+                            saveProjectState();
+                        }, 500);
                     }
                 } catch (error) {
                     console.error("Failed to fetch categorical info:", error);
@@ -448,11 +515,12 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
                 console.log("Results extracted:", resultsText ? "Success" : "Empty");
                 
                 // Parse generated graphs JSON
+                let parsedGraphs: string[] = [];
                 const graphsMatch = allLogs.match(/__GENERATED_GRAPHS_JSON__(.+?)__END_GRAPHS__/);
                 if (graphsMatch) {
                     try {
-                        const graphs = JSON.parse(graphsMatch[1]);
-                        setGeneratedGraphs(graphs);
+                        parsedGraphs = JSON.parse(graphsMatch[1]);
+                        setGeneratedGraphs(parsedGraphs);
                     } catch (e) {
                         console.error("Failed to parse graphs JSON:", e);
                     }
@@ -464,6 +532,41 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
                 // ONLY enable prediction tab if training was successful
                 if (trainingSuccessful) {
                     setModelTrained(true);
+                    
+                    // Save project state to database with current values
+                    // Use allLogs, resultsText, and parsedGraphs from this scope since state updates are async
+                    saveProjectState({
+                        trainFile,
+                        testFile,
+                        datasetPath,
+                        trainColumns,
+                        selectedTrainColumns,
+                        selectedOutputColumn,
+                        testSplitRatio,
+                        selectedHandlingMissingValue,
+                        removeDuplicates,
+                        enableOutlierDetection,
+                        outlierMethod,
+                        zScoreThreshold,
+                        iqrLower,
+                        iqrUpper,
+                        winsorLower,
+                        winsorUpper,
+                        encodingMethod,
+                        selectedFeatureScaling,
+                        regularizationType,
+                        alphaValue,
+                        enableCV,
+                        cvFolds,
+                        selectedGraphs,
+                        selectedExplorations,
+                        selectedEffectFeatures,
+                        logs: allLogs, // Use the accumulated logs
+                        results: resultsText, // Use the parsed results
+                        generatedGraphs: parsedGraphs, // Use the just-parsed graphs
+                        modelTrained: true,
+                        availableModels
+                    });
                 } else {
                     setModelTrained(false);
                     setLogs((prev) => prev + "\n❌ Training failed. Prediction tab remains locked.\n");
@@ -520,13 +623,63 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
         ["Individual Effect Plot", "Mean Effect Plot", "Trend Effect Plot", "Effect Plot"].includes(graph)
     );
 
+    // Save project state to database
+    const saveProjectState = async (overrideState?: any) => {
+        try {
+            const state = overrideState || {
+                trainFile,
+                testFile,
+                datasetPath,
+                trainColumns,
+                selectedTrainColumns,
+                selectedOutputColumn,
+                testSplitRatio,
+                selectedHandlingMissingValue,
+                removeDuplicates,
+                enableOutlierDetection,
+                outlierMethod,
+                zScoreThreshold,
+                iqrLower,
+                iqrUpper,
+                winsorLower,
+                winsorUpper,
+                encodingMethod,
+                selectedFeatureScaling,
+                regularizationType,
+                alphaValue,
+                enableCV,
+                cvFolds,
+                selectedGraphs,
+                selectedExplorations,
+                selectedEffectFeatures,
+                logs,
+                results,
+                generatedGraphs,
+                modelTrained: true,
+                availableModels
+            };
 
+            console.log("💾 Saving project state for project:", projectId);
+            console.log("State to save:", state);
+            
+            const response = await fetch('/api/users/projectstate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ projectId, state })
+            });
 
-
-
-
-
-
+            const data = await response.json();
+            console.log("Save response:", data);
+            
+            if (data.success) {
+                console.log("✅ Project state saved successfully");
+            } else {
+                console.error("Failed to save project state:", data.error);
+            }
+        } catch (error) {
+            console.error("Error saving project state:", error);
+        }
+    };
 
     return (
         <div>
@@ -578,9 +731,49 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
                         </TabsList>
 
 
-                        <Button className="rounded-xl" onClick={handleRunScript} disabled={isRunning}>
-                            {isRunning ? <FaSpinner className="animate-spin" /> : <FaPlay />}
-                        </Button>
+                        <div className="flex gap-2">
+                            <Button className="rounded-xl" onClick={handleRunScript} disabled={isRunning}>
+                                {isRunning ? <FaSpinner className="animate-spin" /> : <FaPlay />}
+                            </Button>
+                            
+                            {modelTrained && (
+                                <Button 
+                                    className="rounded-xl bg-red-600 hover:bg-red-700" 
+                                    onClick={async () => {
+                                        if (confirm("Are you sure you want to reset this project? All saved state will be cleared.")) {
+                                            try {
+                                                const response = await fetch(`/api/users/projectstate?projectId=${projectId}`, {
+                                                    method: 'DELETE'
+                                                });
+                                                const data = await response.json();
+                                                if (data.success) {
+                                                    // Reset all state to initial values
+                                                    setTrainFile(null);
+                                                    setTestFile(null);
+                                                    setDatasetPath("");
+                                                    setTrainColumns([]);
+                                                    setSelectedTrainColumns([]);
+                                                    setSelectedOutputColumn(null);
+                                                    setLogs("");
+                                                    setResults("");
+                                                    setGeneratedGraphs([]);
+                                                    setModelTrained(false);
+                                                    setAvailableModels([]);
+                                                    setPredictionResult(null);
+                                                    alert("✅ Project reset successfully!");
+                                                    window.location.reload();
+                                                }
+                                            } catch (error) {
+                                                console.error("Error resetting project:", error);
+                                                alert("Failed to reset project");
+                                            }
+                                        }
+                                    }}
+                                >
+                                    🔄 Reset
+                                </Button>
+                            )}
+                        </div>
 
                     </div>
 

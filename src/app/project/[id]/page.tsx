@@ -88,6 +88,7 @@ const ProjectPage = () => {
               projectName={projectDetails.projectName}
               projectAlgo={projectDetails.ProjectAlgo}
               projectTime={projectDetails.ProjectTime}
+              projectId={projectDetails.projectId}
             />
           )}
           {projectDetails.ProjectAlgo === "Logistic regression" && (
@@ -95,6 +96,7 @@ const ProjectPage = () => {
               projectName={projectDetails.projectName}
               projectAlgo={projectDetails.ProjectAlgo}
               projectTime={projectDetails.ProjectTime}
+              projectId={projectDetails.projectId}
             />
           )}
           {projectDetails.ProjectAlgo === "knn" && (
@@ -102,6 +104,7 @@ const ProjectPage = () => {
               projectName={projectDetails.projectName}
               projectAlgo={projectDetails.ProjectAlgo}
               projectTime={projectDetails.ProjectTime}
+              projectId={projectDetails.projectId}
             />
           )}
         </div>
