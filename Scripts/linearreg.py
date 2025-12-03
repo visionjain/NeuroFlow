@@ -131,6 +131,10 @@ parser.add_argument("--effect_features", type=str, help="Features to generate ef
 parser.add_argument("--regularization_type", type=str, default="none", choices=["none", "ridge", "lasso", "elasticnet"], help="Type of regularization to use")
 parser.add_argument("--alpha", type=float, default=1.0, help="Regularization strength (alpha parameter)")
 
+# ✅ Cross-Validation Parameters
+parser.add_argument("--enable_cv", type=str, default="false", help="Enable cross-validation (true/false)")
+parser.add_argument("--cv_folds", type=int, default=5, help="Number of folds for cross-validation")
+
 args = parser.parse_args()
 
 train_csv_path = args.train_csv_path
@@ -152,6 +156,10 @@ effect_features = json.loads(args.effect_features) if args.effect_features else 
 # ✅ Process Regularization Parameters
 regularization_type = args.regularization_type.lower()
 alpha_value = args.alpha
+
+# ✅ Process Cross-Validation Parameters
+enable_cv = args.enable_cv.lower() == "true"
+cv_folds = args.cv_folds
 
 # Process selected_graphs argument into a list (if provided)
 selected_graphs = None
@@ -517,11 +525,109 @@ logging.info(f"Available columns in dataset: {df_train.columns.tolist()}")
 
 scaler = StandardScaler()
 X_train_scaled = scaler.fit_transform(X_train)
+
+# Store the FULL training data before any splits (for final model training)
+X_train_full = X_train_scaled.copy()
+y_train_full = y_train.copy()
+
 print("\nData Cleaning & Exploration Done. Check logs for details.")
 
+# ====== Cross-Validation on FULL Training Data (Before Split) ======
+cv_mean_r2 = None
+cv_std_r2 = None
+cv_mean_mse = None
+cv_std_mse = None
+cv_fold_models = []  # Store all CV fold models with their scores
 
-
-
+if enable_cv:
+    from sklearn.model_selection import KFold, cross_val_score
+    from sklearn.linear_model import LinearRegression, Ridge, Lasso, ElasticNet
+    
+    log_and_print(f"\n{'='*80}")
+    log_and_print(f"Performing {cv_folds}-Fold Cross-Validation on FULL Training Dataset...")
+    log_and_print(f"Saving ALL fold models for user selection...")
+    log_and_print(f"{'='*80}")
+    
+    # Create model factory function
+    def create_model():
+        if regularization_type == "ridge":
+            return Ridge(alpha=alpha_value)
+        elif regularization_type == "lasso":
+            return Lasso(alpha=alpha_value, max_iter=10000)
+        elif regularization_type == "elasticnet":
+            return ElasticNet(alpha=alpha_value, max_iter=10000)
+        else:
+            return LinearRegression()
+    
+    model_type_name = {
+        "ridge": f"Ridge (α={alpha_value})",
+        "lasso": f"Lasso (α={alpha_value})",
+        "elasticnet": f"ElasticNet (α={alpha_value})",
+        "none": "Linear Regression"
+    }[regularization_type]
+    
+    log_and_print(f"Model Type: {model_type_name}")
+    
+    # Manually perform CV to save each fold's model
+    kf = KFold(n_splits=cv_folds, shuffle=True, random_state=42)
+    fold_scores_r2 = []
+    fold_scores_mse = []
+    
+    log_and_print(f"\nTraining and saving individual fold models:")
+    for fold_idx, (train_idx, val_idx) in enumerate(kf.split(X_train_scaled), 1):
+        # Split data for this fold
+        X_fold_train, X_fold_val = X_train_scaled[train_idx], X_train_scaled[val_idx]
+        y_fold_train, y_fold_val = y_train.iloc[train_idx], y_train.iloc[val_idx]
+        
+        # Train model on this fold
+        fold_model = create_model()
+        fold_model.fit(X_fold_train, y_fold_train)
+        
+        # Evaluate on validation set
+        y_fold_pred = fold_model.predict(X_fold_val)
+        fold_r2 = r2_score(y_fold_val, y_fold_pred)
+        fold_mse = mean_squared_error(y_fold_val, y_fold_pred)
+        
+        # Calculate accuracy for binary classification
+        fold_accuracy = None
+        unique_fold_vals = np.unique(y_fold_val)
+        if len(unique_fold_vals) == 2 and all(v in [0, 1] for v in unique_fold_vals):
+            y_fold_pred_binary = [1 if pred >= 0.5 else 0 for pred in y_fold_pred]
+            fold_accuracy = accuracy_score(y_fold_val, y_fold_pred_binary)
+        
+        fold_scores_r2.append(fold_r2)
+        fold_scores_mse.append(fold_mse)
+        
+        # Store model info
+        cv_fold_models.append({
+            'fold': fold_idx,
+            'model': fold_model,
+            'r2_score': fold_r2,
+            'mse': fold_mse,
+            'accuracy': fold_accuracy,
+            'train_size': len(train_idx),
+            'val_size': len(val_idx)
+        })
+        
+        accuracy_str = f", Accuracy={fold_accuracy:.4f}" if fold_accuracy is not None else ""
+        log_and_print(f"  Fold {fold_idx}: R²={fold_r2:.4f}, MSE={fold_mse:.4f}{accuracy_str} (trained on {len(train_idx)} samples)")
+    
+    # Calculate aggregate statistics
+    cv_mean_r2 = np.mean(fold_scores_r2)
+    cv_std_r2 = np.std(fold_scores_r2)
+    cv_mean_mse = np.mean(fold_scores_mse)
+    cv_std_mse = np.std(fold_scores_mse)
+    
+    log_and_print(f"\nCross-Validation Summary:")
+    log_and_print(f"  Mean R² Score: {cv_mean_r2:.4f} (± {cv_std_r2:.4f})")
+    log_and_print(f"  Mean MSE: {cv_mean_mse:.4f} (± {cv_std_mse:.4f})")
+    log_and_print(f"  Min R² Score: {min(fold_scores_r2):.4f}")
+    log_and_print(f"  Max R² Score: {max(fold_scores_r2):.4f}")
+    log_and_print(f"{'='*80}\n")
+    log_and_print(f"✓ Saved {len(cv_fold_models)} CV fold models")
+    log_and_print("Now proceeding to train final model on full dataset...\n")
+else:
+    log_and_print("Cross-validation disabled.\n")
 
 
 
@@ -667,26 +773,40 @@ else:
 
 
 
-# ====== Train Model ======
+# ====== Train Final Model ======
 # Import model classes
 from sklearn.linear_model import LinearRegression, Ridge, Lasso, ElasticNet
+
+log_and_print(f"\n{'='*80}")
+log_and_print("Training Final Model...")
+log_and_print(f"{'='*80}")
 
 # Select model based on regularization type
 if regularization_type == "ridge":
     model = Ridge(alpha=alpha_value)
-    log_and_print(f"Using Ridge Regression with alpha={alpha_value}")
+    log_and_print(f"Model Type: Ridge Regression with alpha={alpha_value}")
 elif regularization_type == "lasso":
     model = Lasso(alpha=alpha_value, max_iter=10000)
-    log_and_print(f"Using Lasso Regression with alpha={alpha_value}")
+    log_and_print(f"Model Type: Lasso Regression with alpha={alpha_value}")
 elif regularization_type == "elasticnet":
     model = ElasticNet(alpha=alpha_value, max_iter=10000)
-    log_and_print(f"Using ElasticNet Regression with alpha={alpha_value}")
+    log_and_print(f"Model Type: ElasticNet Regression with alpha={alpha_value}")
 else:
     model = LinearRegression()
-    log_and_print("Using Standard Linear Regression (no regularization)")
+    log_and_print("Model Type: Standard Linear Regression (no regularization)")
 
-model.fit(X_train_scaled, y_train)
-log_and_print("Model Training Completed!")
+# If CV is enabled, train on FULL dataset (best practice after CV validation)
+# If CV is disabled, train on the split training set
+if enable_cv:
+    log_and_print(f"Training on FULL dataset ({len(y_train_full)} samples) - CV validated")
+    model.fit(X_train_full, y_train_full)
+    training_data_used = "full"
+else:
+    log_and_print(f"Training on split training set ({len(y_train)} samples)")
+    model.fit(X_train_scaled, y_train)
+    training_data_used = "split"
+
+log_and_print("✓ Model Training Completed!")
 
 # ====== Make Predictions ======
 y_pred = model.predict(X_test_scaled)
@@ -998,10 +1118,54 @@ if selected_graphs is None or "Shap Summary Plot" in selected_graphs:
 
 
 
-# ====== Save Model, Scaler, and Preprocessing Info ======
+# ====== Save Models (Final + All CV Fold Models) ======
+log_and_print(f"\n{'='*80}")
+log_and_print("Saving Models...")
+log_and_print(f"{'='*80}")
+
 model_path = os.path.join(output_dir, "model.pkl")
 scaler_path = os.path.join(output_dir, "scaler.pkl")
 preprocessing_path = os.path.join(output_dir, "preprocessing.pkl")
+
+# Save the final model (trained on full data if CV enabled)
+joblib.dump(model, model_path)
+log_and_print(f"✓ Final model saved: {model_path}")
+
+# Save all CV fold models if CV was enabled
+available_models = []
+if enable_cv and len(cv_fold_models) > 0:
+    log_and_print(f"\nSaving {len(cv_fold_models)} CV fold models...")
+    for fold_info in cv_fold_models:
+        fold_model_path = os.path.join(output_dir, f"model_fold_{fold_info['fold']}.pkl")
+        joblib.dump(fold_info['model'], fold_model_path)
+        log_and_print(f"  ✓ Fold {fold_info['fold']} model saved (R²={fold_info['r2_score']:.4f})")
+        
+        # Add to available models list
+        available_models.append({
+            'name': f"CV Fold {fold_info['fold']}",
+            'filename': f"model_fold_{fold_info['fold']}.pkl",
+            'r2_score': float(fold_info['r2_score']),
+            'mse': float(fold_info['mse']),
+            'accuracy': float(fold_info['accuracy']) if fold_info['accuracy'] is not None else None,
+            'type': 'cv_fold',
+            'fold_number': fold_info['fold'],
+            'train_size': fold_info['train_size'],
+            'val_size': fold_info['val_size']
+        })
+
+# Add final model to available models
+available_models.insert(0, {
+    'name': f"Final Model ({'CV-Trained on Full Data' if enable_cv else 'Train/Test Split'})",
+    'filename': 'model.pkl',
+    'r2_score': float(r2),
+    'mse': float(mse),
+    'accuracy': float(accuracy) if accuracy is not None else None,
+    'type': 'final',
+    'trained_on_full': enable_cv,
+    'train_size': len(y_train_full) if enable_cv else len(y_train)
+})
+
+log_and_print(f"\n✓ Total models available for prediction: {len(available_models)}")
 
 # Detect if target is binary classification
 target_unique_values = sorted(df_train[output_column].unique())
@@ -1021,15 +1185,16 @@ preprocessing_info = {
     'is_binary_classification': is_binary,  # Whether target is binary (0/1)
     'target_name': output_column,  # Name of target column for display
     'regularization_type': regularization_type,  # Type of regularization used
-    'alpha': alpha_value  # Regularization strength
+    'alpha': alpha_value,  # Regularization strength
+    'available_models': available_models,  # List of all available models with scores
+    'cv_enabled': enable_cv,  # Whether CV was used
+    'cv_folds': cv_folds if enable_cv else None  # Number of folds used
 }
 
-joblib.dump(model, model_path)
 joblib.dump(scaler, scaler_path)
 joblib.dump(preprocessing_info, preprocessing_path)
-log_and_print(f"Model saved as '{model_path}'")
-log_and_print(f"Scaler saved as '{scaler_path}'")
-log_and_print(f"Preprocessing info saved as '{preprocessing_path}'")
+log_and_print(f"✓ Scaler saved: {scaler_path}")
+log_and_print(f"✓ Preprocessing info saved: {preprocessing_path}")
 
 # ====== Save Paths to a File ======
 path_file = os.path.join(output_dir, "saved_paths.txt")
@@ -1040,14 +1205,88 @@ log_and_print(f"Saved paths in '{path_file}'")
 
 
 
-log_and_print("\n======= Model Performance =======")
-log_and_print(f"Mean Squared Error: {mse:.4f}")
-log_and_print(f"R-squared Score: {r2:.4f}")
+log_and_print("\n" + "="*100)
+log_and_print("MODEL PERFORMANCE SUMMARY")
+log_and_print("="*100)
 
-if is_classification:
-    log_and_print(f"Accuracy Score: {accuracy:.4f}")
+# Create a comprehensive results table
+if enable_cv and len(cv_fold_models) > 0:
+    log_and_print("\n📊 COMPREHENSIVE RESULTS TABLE (All Models)")
+    log_and_print("-"*100)
+    
+    # Table header
+    if is_classification:
+        header = f"{'Model':<35} {'R² Score':<12} {'MSE':<15} {'Accuracy':<12} {'Train Size':<12}"
+    else:
+        header = f"{'Model':<35} {'R² Score':<12} {'MSE':<15} {'Train Size':<12}"
+    log_and_print(header)
+    log_and_print("-"*100)
+    
+    # CV Fold rows
+    for fold_info in cv_fold_models:
+        model_name = f"CV Fold {fold_info['fold']}"
+        r2_str = f"{fold_info['r2_score']:.4f}"
+        mse_str = f"{fold_info['mse']:.4f}"
+        train_size = fold_info['train_size']
+        
+        if is_classification and fold_info['accuracy'] is not None:
+            acc_str = f"{fold_info['accuracy']:.4f}"
+            row = f"{model_name:<35} {r2_str:<12} {mse_str:<15} {acc_str:<12} {train_size:<12}"
+        else:
+            row = f"{model_name:<35} {r2_str:<12} {mse_str:<15} {train_size:<12}"
+        log_and_print(row)
+    
+    # Separator before final model
+    log_and_print("-"*100)
+    
+    # Final model row (highlighted)
+    model_name = "Final Model (Full Data)"
+    r2_str = f"{r2:.4f}"
+    mse_str = f"{mse:.4f}"
+    train_size = len(y_train_full)
+    
+    if is_classification and accuracy is not None:
+        acc_str = f"{accuracy:.4f}"
+        row = f"{model_name:<35} {r2_str:<12} {mse_str:<15} {acc_str:<12} {train_size:<12}"
+    else:
+        row = f"{model_name:<35} {r2_str:<12} {mse_str:<15} {train_size:<12}"
+    log_and_print(row + " ⭐ BEST")
+    
+    log_and_print("="*100)
+    
+    # Summary statistics
+    log_and_print("\n📈 CV STATISTICS:")
+    log_and_print(f"  Mean R² Score: {cv_mean_r2:.4f} (± {cv_std_r2:.4f})")
+    log_and_print(f"  Mean MSE: {cv_mean_mse:.4f} (± {cv_std_mse:.4f})")
+    log_and_print(f"  Model Stability: {'✓ Stable' if cv_std_r2 < 0.1 else '⚠ Variable'} (Std Dev: {cv_std_r2:.4f})")
+    
+    log_and_print(f"\n🎯 FINAL MODEL PERFORMANCE:")
+    log_and_print(f"  R² Score: {r2:.4f}")
+    log_and_print(f"  MSE: {mse:.4f}")
+    if is_classification and accuracy is not None:
+        log_and_print(f"  Accuracy: {accuracy:.4f} ({accuracy*100:.2f}%)")
+    log_and_print(f"  Training Samples: {len(y_train_full)} (100% of data)")
+    log_and_print(f"  Test Samples: {len(y_test)}")
+
 else:
-    log_and_print("Skipping accuracy score because target is continuous.")
+    # No CV - just show final model results
+    log_and_print("\n📊 MODEL RESULTS (Train/Test Split)")
+    log_and_print("-"*100)
+    
+    if is_classification:
+        header = f"{'Metric':<30} {'Value':<20}"
+    else:
+        header = f"{'Metric':<30} {'Value':<20}"
+    log_and_print(header)
+    log_and_print("-"*100)
+    
+    log_and_print(f"{'R² Score':<30} {r2:.4f}")
+    log_and_print(f"{'Mean Squared Error (MSE)':<30} {mse:.4f}")
+    if is_classification and accuracy is not None:
+        log_and_print(f"{'Accuracy':<30} {accuracy:.4f} ({accuracy*100:.2f}%)")
+    log_and_print(f"{'Training Samples':<30} {len(y_train)}")
+    log_and_print(f"{'Test Samples':<30} {len(y_test)}")
+    log_and_print("="*100)
 
 # ====== Print Generated Graphs for Frontend ======
 import json

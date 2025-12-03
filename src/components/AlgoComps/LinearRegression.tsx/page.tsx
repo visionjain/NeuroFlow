@@ -43,6 +43,8 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
     const [encodingMethod, setEncodingMethod] = useState("one-hot");
     const [regularizationType, setRegularizationType] = useState("none");
     const [alphaValue, setAlphaValue] = useState("1.0");
+    const [enableCV, setEnableCV] = useState(false);
+    const [cvFolds, setCvFolds] = useState("5");
     const [selectedExplorations, setSelectedExplorations] = useState<string[]>([]);
     const [selectedFeatureScaling, setSelectedFeatureScaling] = useState<string | null>(null);
     const [generatedGraphs, setGeneratedGraphs] = useState<string[]>([]);
@@ -58,6 +60,8 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
         numeric_cols: string[];
         categorical_values: { [key: string]: string[] };
     } | null>(null);
+    const [availableModels, setAvailableModels] = useState<any[]>([]);
+    const [selectedModel, setSelectedModel] = useState<string>("model.pkl");
 
     const availableFeatureScaling = [
         "Min-Max Scaling",
@@ -136,6 +140,13 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
                             numeric_cols: data.numeric_cols || [],
                             categorical_values: data.categorical_values
                         });
+                    }
+
+                    // Also fetch available models
+                    if (data.available_models) {
+                        setAvailableModels(data.available_models);
+                        // Set default to final model
+                        setSelectedModel("model.pkl");
                     }
                 } catch (error) {
                     console.error("Failed to fetch categorical info:", error);
@@ -315,6 +326,8 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
             encoding_Method: encodingMethod,
             regularization_type: regularizationType,
             alpha: alphaValue,
+            enable_cv: JSON.stringify(enableCV),
+            cv_folds: cvFolds,
             available_Explorations: JSON.stringify(selectedExplorations),
 
             // Outlier Detection Parameters
@@ -364,17 +377,62 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
                 // Check if we saw "FINISHED SUCCESSFULLY" in the logs
                 trainingSuccessful = allLogs.includes("FINISHED SUCCESSFULLY");
                 
-                // Once stream ends, parse accumulated logs for results lines
-                const resultLines = allLogs
-                    .split("\n")
-                    .filter(
-                        (line) =>
-                            line.startsWith("Mean Squared Error:") ||
-                            line.startsWith("R-squared Score:") ||
-                            line.startsWith("Accuracy Score:") ||
-                            line.includes("Skipping accuracy")
-                    );
-                setResults(resultLines.join("\n"));
+                // Once stream ends, parse accumulated logs for results
+                // Extract the entire MODEL PERFORMANCE SUMMARY or MODEL RESULTS section
+                let resultsText = "";
+                
+                // Try to find the comprehensive table section (CV) or simple results (non-CV)
+                const hasCV = allLogs.includes("MODEL PERFORMANCE SUMMARY");
+                const hasResults = allLogs.includes("MODEL RESULTS");
+                
+                if (hasCV || hasResults) {
+                    const searchString = hasCV ? "MODEL PERFORMANCE SUMMARY" : "MODEL RESULTS";
+                    const startIdx = allLogs.indexOf(searchString);
+                    const endIdx = allLogs.indexOf("FINISHED SUCCESSFULLY", startIdx);
+                    
+                    if (startIdx !== -1) {
+                        // Extract everything from the start of the section to either end marker or end of logs
+                        const extractedSection = endIdx !== -1 
+                            ? allLogs.substring(startIdx, endIdx).trim()
+                            : allLogs.substring(startIdx).trim();
+                        
+                        // Include the separator lines for better formatting
+                        const lines = allLogs.split("\n");
+                        const summaryLineIdx = lines.findIndex(line => line.includes(searchString));
+                        if (summaryLineIdx >= 0) {
+                            // Get a few lines before the summary (to include the equals separator)
+                            const startLineIdx = Math.max(0, summaryLineIdx - 1);
+                            const endLineIdx = endIdx !== -1 
+                                ? lines.findIndex(line => line.includes("FINISHED SUCCESSFULLY"))
+                                : lines.length;
+                            resultsText = lines.slice(startLineIdx, endLineIdx).join("\n");
+                        } else {
+                            resultsText = extractedSection;
+                        }
+                    }
+                }
+                
+                // Fallback to line-by-line extraction if no table found
+                if (!resultsText) {
+                    const resultLines = allLogs
+                        .split("\n")
+                        .filter(
+                            (line) =>
+                                line.startsWith("Mean Squared Error:") ||
+                                line.startsWith("Mean Squared Error (MSE):") ||
+                                line.startsWith("R-squared Score:") ||
+                                line.startsWith("R-squared Score (R²):") ||
+                                line.startsWith("Accuracy Score:") ||
+                                line.startsWith("CV Mean R² Score:") ||
+                                line.startsWith("CV Mean MSE:") ||
+                                line.includes("Skipping accuracy") ||
+                                line.includes("Regression task")
+                        );
+                    resultsText = resultLines.join("\n");
+                }
+                
+                setResults(resultsText);
+                console.log("Results extracted:", resultsText ? "Success" : "Empty");
                 
                 // Parse generated graphs JSON
                 const graphsMatch = allLogs.match(/__GENERATED_GRAPHS_JSON__(.+?)__END_GRAPHS__/);
@@ -807,40 +865,40 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
 
 
                                     <div className="dark:bg-[#212628] h-52 rounded-xl w-1/3 bg-white p-2">
-                                        <div className="font-semibold text-sm mb-1 mt-1">Encoding & Regularization</div>
+                                        <div className="font-semibold text-sm mb-1 mt-1">Model Configuration</div>
                                         <div className="dark:bg-[#0E0E0E] bg-[#E6E6E6] h-40 p-3 rounded-xl overflow-auto">
 
                                             {trainFile ? (
                                                 <>
-                                                    <div className="text-[10px] text-gray-400 mb-1">Encoding Method:</div>
+                                                    <div className="text-[10px] text-gray-400 mb-1">Encoding:</div>
                                                     <Select onValueChange={setEncodingMethod} value={encodingMethod}>
                                                         <SelectTrigger className="w-full text-xs text-white">
-                                                            <SelectValue placeholder="Select Encoding Method" />
+                                                            <SelectValue placeholder="Encoding" />
                                                         </SelectTrigger>
                                                         <SelectContent>
                                                             <SelectItem value="none">None (Numeric Only)</SelectItem>
-                                                            <SelectItem value="one-hot">One-Hot Encoding</SelectItem>
-                                                            <SelectItem value="label">Label Encoding</SelectItem>
-                                                            <SelectItem value="target">Target Encoding</SelectItem>
+                                                            <SelectItem value="one-hot">One-Hot</SelectItem>
+                                                            <SelectItem value="label">Label</SelectItem>
+                                                            <SelectItem value="target">Target</SelectItem>
                                                         </SelectContent>
                                                     </Select>
 
-                                                    <div className="text-[10px] text-gray-400 mb-1 mt-3">Regularization:</div>
+                                                    <div className="text-[10px] text-gray-400 mb-1 mt-2">Regularization:</div>
                                                     <div className="flex gap-2">
                                                         <Select onValueChange={setRegularizationType} value={regularizationType}>
                                                             <SelectTrigger className="w-2/3 text-xs text-white">
-                                                                <SelectValue placeholder="Regularization" />
+                                                                <SelectValue placeholder="Type" />
                                                             </SelectTrigger>
                                                             <SelectContent>
                                                                 <SelectItem value="none">None</SelectItem>
-                                                                <SelectItem value="ridge">Ridge (L2)</SelectItem>
-                                                                <SelectItem value="lasso">Lasso (L1)</SelectItem>
+                                                                <SelectItem value="ridge">Ridge</SelectItem>
+                                                                <SelectItem value="lasso">Lasso</SelectItem>
                                                                 <SelectItem value="elasticnet">ElasticNet</SelectItem>
                                                             </SelectContent>
                                                         </Select>
                                                         <Input 
                                                             type="number" 
-                                                            placeholder="Alpha"
+                                                            placeholder="α"
                                                             value={alphaValue}
                                                             onChange={(e) => setAlphaValue(e.target.value)}
                                                             className="w-1/3 text-xs"
@@ -850,9 +908,25 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
                                                         />
                                                     </div>
 
-                                                    {/* Note for users */}
-                                                    <div className="text-[10px] text-gray-400 mt-2 text-center">
-                                                        {regularizationType === "none" ? "⚡ No regularization (default)" : `✓ ${regularizationType.charAt(0).toUpperCase() + regularizationType.slice(1)} with α=${alphaValue}`}
+                                                    <div className="text-[10px] text-gray-400 mb-1 mt-2">Cross-Validation:</div>
+                                                    <div className="flex gap-2 items-center">
+                                                        <Checkbox
+                                                            checked={enableCV}
+                                                            onCheckedChange={(checked) => setEnableCV(!!checked)}
+                                                            className="h-3 w-3"
+                                                        />
+                                                        <span className="text-xs">Enable</span>
+                                                        <Input 
+                                                            type="number" 
+                                                            placeholder="Folds"
+                                                            value={cvFolds}
+                                                            onChange={(e) => setCvFolds(e.target.value)}
+                                                            className="w-16 text-xs h-7"
+                                                            min="2"
+                                                            max="20"
+                                                            disabled={!enableCV}
+                                                        />
+                                                        <span className="text-[10px] text-gray-400">folds</span>
                                                     </div>
                                                 </>
                                             ) : (
@@ -1184,9 +1258,9 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
                         </TabsContent>
 
                         <TabsContent value="result">
-                            <div className="flex flex-col items-center justify-center h-[700px] dark:bg-[#0E0E0E] bg-[#E6E6E6] rounded-xl ml-4 mr-4 p-8">
+                            <div className="flex flex-col items-center justify-center min-h-[700px] dark:bg-[#0E0E0E] bg-[#E6E6E6] rounded-xl ml-4 mr-4 p-8">
                                 {results ? (
-                                    <div className="w-full max-w-4xl space-y-6">
+                                    <div className="w-full space-y-6">
                                         <div className="text-center mb-8">
                                             <h2 className="text-4xl font-bold mb-2 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
                                                 📊 Model Performance Metrics
@@ -1194,11 +1268,220 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
                                             <p className="text-sm text-gray-500 dark:text-gray-400">Generated on {new Date().toLocaleString()}</p>
                                         </div>
                                         
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                            {results
-                                                .split("\n")
-                                                .filter((line) => line.trim() !== "")
-                                                .map((line, index) => {
+                                        {/* Check if results contain the comprehensive table */}
+                                        {results.includes("COMPREHENSIVE RESULTS TABLE") || results.includes("MODEL PERFORMANCE SUMMARY") || results.includes("MODEL RESULTS") ? (
+                                            <div className="w-full space-y-6">
+                                                {/* Parse and display the table beautifully */}
+                                                {(() => {
+                                                    const lines = results.split("\n");
+                                                    const hasCV = results.includes("COMPREHENSIVE RESULTS TABLE");
+                                                    
+                                                    // For CV: Extract table rows
+                                                    const tableLines = lines.filter(line => 
+                                                        line.includes("CV Fold") || 
+                                                        line.includes("Final Model") ||
+                                                        (line.includes("R² Score") && line.includes("MSE"))
+                                                    );
+                                                    
+                                                    // Extract CV Statistics
+                                                    const cvStatsLines = lines.filter(line => 
+                                                        line.includes("Mean R² Score:") || 
+                                                        line.includes("Mean MSE:") ||
+                                                        line.includes("Model Stability:")
+                                                    );
+                                                    
+                                                    // Extract metrics (works for both CV and non-CV)
+                                                    const metricsObj: any = {};
+                                                    lines.forEach(line => {
+                                                        // Clean the line and split by multiple spaces
+                                                        const cleanLine = line.replace(/-+/g, '').trim();
+                                                        
+                                                        if (cleanLine.includes("R² Score") && !cleanLine.includes("Mean")) {
+                                                            // Handle both "R² Score: value" and "R² Score    value" formats
+                                                            const parts = cleanLine.split(/\s{2,}|\s*:\s*/);
+                                                            if (parts.length >= 2) {
+                                                                metricsObj.r2 = parts[1].trim();
+                                                            }
+                                                        }
+                                                        if (cleanLine.includes("Mean Squared Error")) {
+                                                            const parts = cleanLine.split(/\s{2,}|\s*:\s*/);
+                                                            if (parts.length >= 2) {
+                                                                metricsObj.mse = parts[parts.length - 1].trim();
+                                                            }
+                                                        }
+                                                        if (cleanLine.includes("Accuracy")) {
+                                                            const parts = cleanLine.split(/\s{2,}|\s*:\s*/);
+                                                            if (parts.length >= 2) {
+                                                                metricsObj.accuracy = parts[1].trim();
+                                                            }
+                                                        }
+                                                        if (cleanLine.includes("Training Samples")) {
+                                                            const parts = cleanLine.split(/\s{2,}|\s*:\s*/);
+                                                            if (parts.length >= 2) {
+                                                                metricsObj.trainSize = parts[parts.length - 1].trim();
+                                                            }
+                                                        }
+                                                        if (cleanLine.includes("Test Samples")) {
+                                                            const parts = cleanLine.split(/\s{2,}|\s*:\s*/);
+                                                            if (parts.length >= 2) {
+                                                                metricsObj.testSize = parts[parts.length - 1].trim();
+                                                            }
+                                                        }
+                                                    });
+                                                    
+                                                    // Parse model rows
+                                                    const modelRows = tableLines.filter(line => 
+                                                        line.includes("CV Fold") || line.includes("Final Model")
+                                                    );
+                                                    
+                                                    return (
+                                                        <>
+                                                            {/* Models Table - Only show if CV enabled */}
+                                                            {hasCV && modelRows.length > 0 && (
+                                                                <div className="dark:bg-[#1a1a1a] bg-white rounded-2xl shadow-2xl overflow-hidden border border-purple-500/30">
+                                                                    <div className="bg-gradient-to-r from-purple-600 to-blue-600 p-6">
+                                                                        <h3 className="text-2xl font-bold text-white flex items-center gap-3">
+                                                                            <span className="text-3xl">🏆</span>
+                                                                            All Models Comparison
+                                                                        </h3>
+                                                                    </div>
+                                                                    
+                                                                    <div className="overflow-x-auto">
+                                                                        <table className="w-full">
+                                                                        <thead className="bg-gradient-to-r from-gray-700 to-gray-800 dark:from-gray-800 dark:to-gray-900">
+                                                                            <tr>
+                                                                                <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Model</th>
+                                                                                <th className="px-6 py-4 text-center text-xs font-bold text-white uppercase tracking-wider">R² Score</th>
+                                                                                <th className="px-6 py-4 text-center text-xs font-bold text-white uppercase tracking-wider">MSE</th>
+                                                                                {tableLines[0]?.includes("Accuracy") && (
+                                                                                    <th className="px-6 py-4 text-center text-xs font-bold text-white uppercase tracking-wider">Accuracy</th>
+                                                                                )}
+                                                                                <th className="px-6 py-4 text-center text-xs font-bold text-white uppercase tracking-wider">Train Size</th>
+                                                                            </tr>
+                                                                        </thead>
+                                                                        <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                                                                            {modelRows.map((row, idx) => {
+                                                                                const parts = row.split(/\s{2,}/);
+                                                                                const isFinal = row.includes("Final Model");
+                                                                                const rowBg = isFinal 
+                                                                                    ? "bg-gradient-to-r from-green-50 to-blue-50 dark:from-green-900/20 dark:to-blue-900/20" 
+                                                                                    : idx % 2 === 0 
+                                                                                        ? "bg-gray-50 dark:bg-gray-800/50" 
+                                                                                        : "bg-white dark:bg-gray-900/50";
+                                                                                
+                                                                                return (
+                                                                                    <tr key={idx} className={`${rowBg} hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors`}>
+                                                                                        <td className="px-6 py-4 whitespace-nowrap">
+                                                                                            <div className="flex items-center gap-2">
+                                                                                                {isFinal && <span className="text-2xl">⭐</span>}
+                                                                                                <span className={`font-semibold ${isFinal ? 'text-green-600 dark:text-green-400' : 'text-gray-900 dark:text-gray-100'}`}>
+                                                                                                    {parts[0]?.trim()}
+                                                                                                </span>
+                                                                                            </div>
+                                                                                        </td>
+                                                                                        <td className="px-6 py-4 text-center">
+                                                                                            <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
+                                                                                                {parts[1]?.trim() || 'N/A'}
+                                                                                            </span>
+                                                                                        </td>
+                                                                                        <td className="px-6 py-4 text-center">
+                                                                                            <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200">
+                                                                                                {parts[2]?.trim() || 'N/A'}
+                                                                                            </span>
+                                                                                        </td>
+                                                                                        {tableLines[0]?.includes("Accuracy") && (
+                                                                                            <td className="px-6 py-4 text-center">
+                                                                                                <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                                                                                                    {parts[3]?.trim() || 'N/A'}
+                                                                                                </span>
+                                                                                            </td>
+                                                                                        )}
+                                                                                        <td className="px-6 py-4 text-center">
+                                                                                            <span className="text-sm text-gray-600 dark:text-gray-400 font-medium">
+                                                                                                {parts[tableLines[0]?.includes("Accuracy") ? 4 : 3]?.trim() || 'N/A'}
+                                                                                            </span>
+                                                                                        </td>
+                                                                                    </tr>
+                                                                                );
+                                                                            })}
+                                                                        </tbody>
+                                                                    </table>
+                                                                </div>
+                                                            </div>
+                                                            )}
+                                                            
+                                                            {/* CV Statistics Cards */}
+                                                            {cvStatsLines.length > 0 && (
+                                                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                                                    {cvStatsLines.map((line, idx) => {
+                                                                        const [label, value] = line.split(":").map(s => s.trim());
+                                                                        const icon = label?.includes("R²") ? "📊" : label?.includes("MSE") ? "⚠️" : "✓";
+                                                                        const color = label?.includes("R²") ? "from-purple-500 to-purple-600" 
+                                                                            : label?.includes("MSE") ? "from-orange-500 to-orange-600"
+                                                                            : "from-green-500 to-green-600";
+                                                                        
+                                                                        return (
+                                                                            <div key={idx} className={`bg-gradient-to-br ${color} p-6 rounded-2xl shadow-xl text-white`}>
+                                                                                <div className="text-4xl mb-2">{icon}</div>
+                                                                                <div className="text-sm opacity-90 mb-1">{label}</div>
+                                                                                <div className="text-2xl font-bold">{value}</div>
+                                                                            </div>
+                                                                        );
+                                                                    })}
+                                                                </div>
+                                                            )}
+                                                            
+                                                            {/* Final Model Performance - Always show */}
+                                                            {(metricsObj.r2 || metricsObj.mse) && (
+                                                                <div className="dark:bg-[#1a1a1a] bg-white rounded-2xl shadow-2xl p-8 border-2 border-green-500/50">
+                                                                    <h3 className="text-2xl font-bold mb-6 flex items-center gap-3 text-green-600 dark:text-green-400">
+                                                                        <span className="text-3xl">🎯</span>
+                                                                        {hasCV ? 'Final Model Performance' : 'Model Performance'}
+                                                                    </h3>
+                                                                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                                                                        {metricsObj.r2 && (
+                                                                            <div className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 p-6 rounded-xl border border-purple-300 dark:border-purple-700">
+                                                                                <div className="text-xs text-purple-600 dark:text-purple-400 mb-1 font-semibold">R² Score</div>
+                                                                                <div className="text-3xl font-bold text-purple-700 dark:text-purple-300">{metricsObj.r2}</div>
+                                                                            </div>
+                                                                        )}
+                                                                        {metricsObj.mse && (
+                                                                            <div className="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20 p-6 rounded-xl border border-orange-300 dark:border-orange-700">
+                                                                                <div className="text-xs text-orange-600 dark:text-orange-400 mb-1 font-semibold">MSE</div>
+                                                                                <div className="text-3xl font-bold text-orange-700 dark:text-orange-300">{metricsObj.mse}</div>
+                                                                            </div>
+                                                                        )}
+                                                                        {metricsObj.accuracy && (
+                                                                            <div className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 p-6 rounded-xl border border-green-300 dark:border-green-700">
+                                                                                <div className="text-xs text-green-600 dark:text-green-400 mb-1 font-semibold">Accuracy</div>
+                                                                                <div className="text-3xl font-bold text-green-700 dark:text-green-300">{metricsObj.accuracy}</div>
+                                                                            </div>
+                                                                        )}
+                                                                        {metricsObj.trainSize && (
+                                                                            <div className="bg-gray-50 dark:bg-gray-800 p-6 rounded-xl border border-gray-300 dark:border-gray-700">
+                                                                                <div className="text-xs text-gray-600 dark:text-gray-400 mb-1 font-semibold">Training Samples</div>
+                                                                                <div className="text-2xl font-bold text-gray-900 dark:text-white">{metricsObj.trainSize}</div>
+                                                                            </div>
+                                                                        )}
+                                                                        {metricsObj.testSize && (
+                                                                            <div className="bg-gray-50 dark:bg-gray-800 p-6 rounded-xl border border-gray-300 dark:border-gray-700">
+                                                                                <div className="text-xs text-gray-600 dark:text-gray-400 mb-1 font-semibold">Test Samples</div>
+                                                                                <div className="text-2xl font-bold text-gray-900 dark:text-white">{metricsObj.testSize}</div>
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            )}
+                                                        </>
+                                                    );
+                                                })()}
+                                            </div>
+                                        ) : (
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
+                                                {results
+                                                    .split("\n")
+                                                    .filter((line) => line.trim() !== "")
+                                                    .map((line, index) => {
                                                     const parts = line.split(":");
                                                     const label = parts[0]?.trim();
                                                     const value = parts[1]?.trim();
@@ -1238,7 +1521,8 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
                                                         </div>
                                                     );
                                                 })}
-                                        </div>
+                                            </div>
+                                        )}
                                         
                                         {results.toLowerCase().includes("skipping") && (
                                             <div className="mt-6 p-4 bg-yellow-100 dark:bg-yellow-900 border-l-4 border-yellow-500 rounded-lg">
@@ -1275,6 +1559,32 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
                                                 Enter feature values to predict {selectedOutputColumn || 'the target'}
                                             </p>
                                         </div>
+
+                                        {/* Model Selector */}
+                                        {availableModels.length >= 1 && (
+                                            <div className="dark:bg-[#212628] bg-white p-4 rounded-lg border border-purple-500/30">
+                                                <Label className="text-sm font-semibold mb-2 block">Select Model for Prediction:</Label>
+                                                <Select onValueChange={setSelectedModel} value={selectedModel}>
+                                                    <SelectTrigger className="w-full">
+                                                        <SelectValue placeholder="Choose a model" />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {availableModels.map((model) => (
+                                                            <SelectItem key={model.filename} value={model.filename}>
+                                                                {model.name} - R²: {model.r2_score.toFixed(4)} | MSE: {model.mse.toFixed(4)}
+                                                                {model.accuracy !== null && model.accuracy !== undefined && ` | Acc: ${model.accuracy.toFixed(4)}`}
+                                                            </SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                                <p className="text-xs text-gray-500 mt-2">
+                                                    {availableModels.length} {availableModels.length === 1 ? 'model' : 'models'} available
+                                                    {availableModels.find(m => m.filename === selectedModel)?.type === 'cv_fold' && 
+                                                        ` | Using CV Fold ${availableModels.find(m => m.filename === selectedModel)?.fold_number}`
+                                                    }
+                                                </p>
+                                            </div>
+                                        )}
 
                                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-h-[400px] overflow-y-auto p-4 dark:bg-[#212628] bg-white rounded-lg">
                                             {selectedTrainColumns.map((column) => {
@@ -1345,12 +1655,12 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
                                                     setPredictionResult(null);
 
                                                     try {
-                                                        // Construct the path to the saved model
+                                                        // Construct the path to the selected model
                                                         const normalizedPath = datasetPath.trim().replace(/[/\\]+$/, "");
                                                         const isWindows = navigator.platform.startsWith("Win");
                                                         const separator = isWindows ? "\\\\" : "/";
                                                         const modelDir = `${normalizedPath}${separator}linearregression-${trainFile?.split(".")[0]}`;
-                                                        const modelPath = `${modelDir}${separator}model.pkl`;
+                                                        const modelPath = `${modelDir}${separator}${selectedModel}`;
 
                                                         // Prepare input values as an object with feature names
                                                         // Keep text values as strings, convert numbers

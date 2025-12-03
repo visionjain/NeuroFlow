@@ -22,6 +22,10 @@ export async function GET(req: NextRequest) {
     const regularization_type = searchParams.get("regularization_type");
     const alpha = searchParams.get("alpha");
 
+    // ✅ Cross-Validation Parameters
+    const enable_cv = searchParams.get("enable_cv") === "true";
+    const cv_folds = searchParams.get("cv_folds");
+
     // ✅ Outlier Detection Parameters
     const enable_outlier_detection = searchParams.get("enable_outlier_detection") === "true";
     const outlier_method = searchParams.get("outlier_method");
@@ -88,6 +92,14 @@ export async function GET(req: NextRequest) {
     }
     if (alpha) {
       args.push("--alpha", alpha);
+    }
+
+    // ✅ Add Cross-Validation Parameters
+    if (enable_cv) {
+      args.push("--enable_cv", "true");
+      if (cv_folds) {
+        args.push("--cv_folds", cv_folds);
+      }
     }
 
     // ✅ Add Feature Scaling (if selected)

@@ -22,7 +22,8 @@ def main():
             "categorical_cols": categorical_cols,
             "numeric_cols": numeric_cols,
             "categorical_values": preprocessing_info.get('categorical_values', {}),
-            "encoding_type": preprocessing_info.get('encoding_type', 'none')
+            "encoding_type": preprocessing_info.get('encoding_type', 'none'),
+            "available_models": preprocessing_info.get('available_models', [])
         }
         
         print(json.dumps(result))
