@@ -18,6 +18,10 @@ export async function GET(req: NextRequest) {
     const remove_Duplicates = searchParams.get("remove_Duplicates") === "true";
     const encoding_method = searchParams.get("encoding_Method");
 
+    // ✅ Regularization Parameters
+    const regularization_type = searchParams.get("regularization_type");
+    const alpha = searchParams.get("alpha");
+
     // ✅ Outlier Detection Parameters
     const enable_outlier_detection = searchParams.get("enable_outlier_detection") === "true";
     const outlier_method = searchParams.get("outlier_method");
@@ -76,6 +80,14 @@ export async function GET(req: NextRequest) {
 
     if (encoding_method) {
       args.push("--encoding_type", encoding_method);
+    }
+
+    // ✅ Add Regularization Parameters
+    if (regularization_type) {
+      args.push("--regularization_type", regularization_type);
+    }
+    if (alpha) {
+      args.push("--alpha", alpha);
     }
 
     // ✅ Add Feature Scaling (if selected)

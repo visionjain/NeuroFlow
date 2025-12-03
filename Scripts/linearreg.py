@@ -127,6 +127,10 @@ parser.add_argument("--feature_scaling", type=str, help="Selected feature scalin
 # ✅ Effect Features for Comparison
 parser.add_argument("--effect_features", type=str, help="Features to generate effect plots for (JSON array)")
 
+# ✅ Regularization Parameters
+parser.add_argument("--regularization_type", type=str, default="none", choices=["none", "ridge", "lasso", "elasticnet"], help="Type of regularization to use")
+parser.add_argument("--alpha", type=float, default=1.0, help="Regularization strength (alpha parameter)")
+
 args = parser.parse_args()
 
 train_csv_path = args.train_csv_path
@@ -144,6 +148,10 @@ feature_scaling = args.feature_scaling if args.feature_scaling else None
 
 # ✅ Process Effect Features
 effect_features = json.loads(args.effect_features) if args.effect_features else None
+
+# ✅ Process Regularization Parameters
+regularization_type = args.regularization_type.lower()
+alpha_value = args.alpha
 
 # Process selected_graphs argument into a list (if provided)
 selected_graphs = None
@@ -660,7 +668,23 @@ else:
 
 
 # ====== Train Model ======
-model = LinearRegression()
+# Import model classes
+from sklearn.linear_model import LinearRegression, Ridge, Lasso, ElasticNet
+
+# Select model based on regularization type
+if regularization_type == "ridge":
+    model = Ridge(alpha=alpha_value)
+    log_and_print(f"Using Ridge Regression with alpha={alpha_value}")
+elif regularization_type == "lasso":
+    model = Lasso(alpha=alpha_value, max_iter=10000)
+    log_and_print(f"Using Lasso Regression with alpha={alpha_value}")
+elif regularization_type == "elasticnet":
+    model = ElasticNet(alpha=alpha_value, max_iter=10000)
+    log_and_print(f"Using ElasticNet Regression with alpha={alpha_value}")
+else:
+    model = LinearRegression()
+    log_and_print("Using Standard Linear Regression (no regularization)")
+
 model.fit(X_train_scaled, y_train)
 log_and_print("Model Training Completed!")
 
@@ -995,7 +1019,9 @@ preprocessing_info = {
     'target_means': target_means_dict if args.encoding_type.lower() == 'target' else None,  # Mean mappings for Target Encoding
     'encoding_added_cols': encoding_added_cols,  # Mapping of original → encoded columns
     'is_binary_classification': is_binary,  # Whether target is binary (0/1)
-    'target_name': output_column  # Name of target column for display
+    'target_name': output_column,  # Name of target column for display
+    'regularization_type': regularization_type,  # Type of regularization used
+    'alpha': alpha_value  # Regularization strength
 }
 
 joblib.dump(model, model_path)

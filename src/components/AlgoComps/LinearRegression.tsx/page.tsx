@@ -41,6 +41,8 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
     const [winsorLower, setWinsorLower] = useState(1);
     const [winsorUpper, setWinsorUpper] = useState(99);
     const [encodingMethod, setEncodingMethod] = useState("one-hot");
+    const [regularizationType, setRegularizationType] = useState("none");
+    const [alphaValue, setAlphaValue] = useState("1.0");
     const [selectedExplorations, setSelectedExplorations] = useState<string[]>([]);
     const [selectedFeatureScaling, setSelectedFeatureScaling] = useState<string | null>(null);
     const [generatedGraphs, setGeneratedGraphs] = useState<string[]>([]);
@@ -311,6 +313,8 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
             selected_missingval_tech: JSON.stringify(selectedHandlingMissingValue),
             remove_Duplicates: JSON.stringify(removeDuplicates),
             encoding_Method: encodingMethod,
+            regularization_type: regularizationType,
+            alpha: alphaValue,
             available_Explorations: JSON.stringify(selectedExplorations),
 
             // Outlier Detection Parameters
@@ -803,31 +807,57 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
 
 
                                     <div className="dark:bg-[#212628] h-52 rounded-xl w-1/3 bg-white p-2">
-                                        <div className="font-semibold text-sm mb-1 mt-1">Encoding Technique for Categorical Data</div>
+                                        <div className="font-semibold text-sm mb-1 mt-1">Encoding & Regularization</div>
                                         <div className="dark:bg-[#0E0E0E] bg-[#E6E6E6] h-40 p-3 rounded-xl overflow-auto">
 
                                             {trainFile ? (
                                                 <>
+                                                    <div className="text-[10px] text-gray-400 mb-1">Encoding Method:</div>
                                                     <Select onValueChange={setEncodingMethod} value={encodingMethod}>
                                                         <SelectTrigger className="w-full text-xs text-white">
                                                             <SelectValue placeholder="Select Encoding Method" />
                                                         </SelectTrigger>
                                                         <SelectContent>
-                                                            <SelectItem value="none">None (Use Only Numeric Columns)</SelectItem>
+                                                            <SelectItem value="none">None (Numeric Only)</SelectItem>
                                                             <SelectItem value="one-hot">One-Hot Encoding</SelectItem>
                                                             <SelectItem value="label">Label Encoding</SelectItem>
                                                             <SelectItem value="target">Target Encoding</SelectItem>
                                                         </SelectContent>
                                                     </Select>
 
+                                                    <div className="text-[10px] text-gray-400 mb-1 mt-3">Regularization:</div>
+                                                    <div className="flex gap-2">
+                                                        <Select onValueChange={setRegularizationType} value={regularizationType}>
+                                                            <SelectTrigger className="w-2/3 text-xs text-white">
+                                                                <SelectValue placeholder="Regularization" />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                <SelectItem value="none">None</SelectItem>
+                                                                <SelectItem value="ridge">Ridge (L2)</SelectItem>
+                                                                <SelectItem value="lasso">Lasso (L1)</SelectItem>
+                                                                <SelectItem value="elasticnet">ElasticNet</SelectItem>
+                                                            </SelectContent>
+                                                        </Select>
+                                                        <Input 
+                                                            type="number" 
+                                                            placeholder="Alpha"
+                                                            value={alphaValue}
+                                                            onChange={(e) => setAlphaValue(e.target.value)}
+                                                            className="w-1/3 text-xs"
+                                                            step="0.1"
+                                                            min="0.001"
+                                                            disabled={regularizationType === "none"}
+                                                        />
+                                                    </div>
+
                                                     {/* Note for users */}
-                                                    <div className="text-xs text-gray-400 mt-2 text-center">
-                                                        ⚡ If unsure, keep <span className="font-semibold">One-Hot Encoding</span> as default. No effect if no categorical data found.
+                                                    <div className="text-[10px] text-gray-400 mt-2 text-center">
+                                                        {regularizationType === "none" ? "⚡ No regularization (default)" : `✓ ${regularizationType.charAt(0).toUpperCase() + regularizationType.slice(1)} with α=${alphaValue}`}
                                                     </div>
                                                 </>
                                             ) : (
-                                                <div className="text-center text-white">
-                                                    Please select a train file to choose an encoding method.
+                                                <div className="text-center text-white text-xs">
+                                                    Please select a train file first.
                                                 </div>
                                             )}
                                         </div>
