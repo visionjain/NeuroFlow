@@ -1,6 +1,5 @@
 <div align="center">
-  <img src="public/logo-icon.png" alt="NeuroFlow Icon" width="100" />
-  <img src="public/logo-full.png" alt="NeuroFlow" width="400" />
+  <img src="public/logo-square.png" alt="NeuroFlow - No Code ML Platform" width="400" />
 </div>
 
 # 🧠 NeuroFlow
