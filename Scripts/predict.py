@@ -33,10 +33,18 @@ def main():
             sys.exit(1)
         
         preprocessing_info = joblib.load(preprocessing_path)
-        original_train_columns = preprocessing_info['original_train_columns']
+        original_train_columns = preprocessing_info.get('original_train_columns', [])
+        
+        # Check if this is an old model without final_feature_names
+        if 'final_feature_names' not in preprocessing_info:
+            print("WARNING: Old model format detected. Please retrain for best results.", file=sys.stderr)
+            print("ERROR: This model was trained with an older version. Please retrain the model to use predictions.", file=sys.stderr)
+            print("RETRAIN_REQUIRED", file=sys.stderr)
+            sys.exit(1)
+        
         final_feature_names = preprocessing_info['final_feature_names']
-        encoding_type = preprocessing_info['encoding_type']
-        categorical_cols = preprocessing_info['categorical_cols']
+        encoding_type = preprocessing_info.get('encoding_type', 'one-hot')
+        categorical_cols = preprocessing_info.get('categorical_cols', [])
         label_encoders = preprocessing_info.get('label_encoders', {})
         target_means = preprocessing_info.get('target_means', {})
         encoding_added_cols = preprocessing_info.get('encoding_added_cols', {})

@@ -8,8 +8,33 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+
+// Info Tooltip Component
+const InfoTooltip = ({ title, description }: { title: string; description: string }) => {
+    return (
+        <Dialog>
+            <DialogTrigger asChild>
+                <button 
+                    className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-white dark:bg-gray-200 border-2 border-gray-300 dark:border-gray-400 hover:border-blue-500 dark:hover:border-blue-400 transition-colors cursor-pointer ml-1"
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    <span className="text-black font-bold text-xs">!</span>
+                </button>
+            </DialogTrigger>
+            <DialogContent className="max-w-md">
+                <DialogHeader>
+                    <DialogTitle className="text-lg font-bold">{title}</DialogTitle>
+                </DialogHeader>
+                <div className="mt-2 text-sm text-gray-600 dark:text-gray-300">
+                    {description}
+                </div>
+            </DialogContent>
+        </Dialog>
+    );
+};
 
 interface LinearRegressionProps {
     projectName: string;
@@ -986,7 +1011,13 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
 
                                     <div className="dark:bg-[#212628] h-52 rounded-xl w-1/3 bg-white p-2">
                                         <div className="flex items-center justify-between mb-1 mt-1">
-                                            <div className="font-semibold text-sm">Select Train Columns</div>
+                                            <div className="font-semibold text-sm flex items-center">
+                                                Select Train Columns
+                                                <InfoTooltip 
+                                                    title="Train Columns" 
+                                                    description="Choose which columns from your dataset to use as input features for training the model. These are the independent variables (X) that will be used to predict the target." 
+                                                />
+                                            </div>
 
                                             {/* Show "Select All" Checkbox only if a file is selected */}
                                             {trainFile && (
@@ -1022,7 +1053,13 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
 
 
                                     <div className="dark:bg-[#212628] h-52 rounded-xl w-1/3 bg-white p-2">
-                                        <div className="font-semibold text-sm mb-1 mt-1">Select Output Column</div>
+                                        <div className="font-semibold text-sm mb-1 mt-1 flex items-center">
+                                            Select Output Column
+                                            <InfoTooltip 
+                                                title="Output Column" 
+                                                description="Choose the target column (dependent variable Y) that you want to predict. This should be a continuous numerical column like price, temperature, or sales." 
+                                            />
+                                        </div>
 
                                         <div className="dark:bg-[#0E0E0E] bg-[#E6E6E6] h-40 p-3 rounded-xl overflow-auto">
                                             {trainFile ? (
@@ -1053,7 +1090,13 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
 
                                     <div className="dark:bg-[#212628] h-52 rounded-xl w-1/3 bg-white p-2">
                                         <div className="flex items-center justify-between mb-1 mt-1">
-                                            <div className="font-semibold text-sm">Select Data Exploration Techniques</div>
+                                            <div className="font-semibold text-sm flex items-center">
+                                                Select Data Exploration Techniques
+                                                <InfoTooltip 
+                                                    title="Data Exploration" 
+                                                    description="Explore your data before training. These techniques help you understand data structure, distributions, missing values, and relationships between variables." 
+                                                />
+                                            </div>
                                             <div className="flex items-center">
                                                 <Checkbox
                                                     checked={selectedExplorations.length === availableExplorations.length}
@@ -1086,7 +1129,13 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
 
                                     <div className="dark:bg-[#212628] h-52 rounded-xl w-1/3 bg-white p-2">
                                         <div className="flex items-center justify-between mb-1 mt-1">
-                                            <div className="font-semibold text-sm">Select Graphs</div>
+                                            <div className="font-semibold text-sm flex items-center">
+                                                Select Graphs
+                                                <InfoTooltip 
+                                                    title="Select Graphs" 
+                                                    description="Choose visualizations to generate after training. Graphs help evaluate model performance (Residual Plots, Learning Curves), understand features (Model Coefficients, Effect Plots), and identify data patterns." 
+                                                />
+                                            </div>
                                             <div className="flex items-center">
                                                 <Checkbox
                                                     checked={selectedGraphs.length === availableGraphs.length}
@@ -1121,7 +1170,13 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
 
                                     <div className="dark:bg-[#212628] h-52 rounded-xl w-1/3 bg-white p-2">
                                         <div className="flex items-center justify-between mb-1 mt-1">
-                                            <div className="font-semibold text-sm">Handling Missing Values</div>
+                                            <div className="font-semibold text-sm flex items-center">
+                                                Handling Missing Values
+                                                <InfoTooltip 
+                                                    title="Handling Missing Values" 
+                                                    description="Choose how to handle missing data: Mean/Median/Mode Imputation fills missing values with statistical measures, Forward/Backward Fill uses nearby values, Drop Rows removes incomplete data." 
+                                                />
+                                            </div>
 
                                             {/* Remove Duplicates Checkbox (Only shows if a file is selected) */}
                                             {trainFile && (
@@ -1174,7 +1229,13 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
 
 
                                     <div className="dark:bg-[#212628] h-52 rounded-xl w-1/3 bg-white p-2">
-                                        <div className="font-semibold text-sm mb-1 mt-1">Model Configuration</div>
+                                        <div className="font-semibold text-sm mb-1 mt-1 flex items-center">
+                                            Model Configuration
+                                            <InfoTooltip 
+                                                title="Model Configuration" 
+                                                description="Configure the regression model: Encoding converts categorical data to numbers, Regularization (Ridge/Lasso/ElasticNet) prevents overfitting by penalizing large coefficients, Cross-Validation tests model on multiple data splits." 
+                                            />
+                                        </div>
                                         <div className="dark:bg-[#0E0E0E] bg-[#E6E6E6] h-40 p-3 rounded-xl overflow-auto">
 
                                             {trainFile ? (
@@ -1248,7 +1309,13 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
 
                                     <div className="dark:bg-[#212628] h-52 rounded-xl w-1/3 bg-white p-2">
                                         <div className="flex items-center justify-between mb-1 mt-1">
-                                            <div className="font-semibold text-sm ">Outlier Removal</div>
+                                            <div className="font-semibold text-sm flex items-center">
+                                                Outlier Removal
+                                                <InfoTooltip 
+                                                    title="Outlier Removal" 
+                                                    description="Remove extreme values that can skew results: Z-Score removes values beyond standard deviations, IQR removes values outside interquartile range, Winsorization caps extreme values at specified percentiles." 
+                                                />
+                                            </div>
                                             {trainFile && (
                                                 <div className="flex items-center text-xs cursor-pointer">
                                                     <Checkbox
@@ -1353,7 +1420,13 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
                                     {/* Advanced Tab */}
                                     <div className="dark:bg-[#212628] h-auto rounded-xl w-1/3 bg-white p-2">
                                         {/* Section Title */}
-                                        <div className="font-semibold text-sm mb-2">Feature Scaling</div>
+                                        <div className="font-semibold text-sm mb-2 flex items-center">
+                                            Feature Scaling
+                                            <InfoTooltip 
+                                                title="Feature Scaling" 
+                                                description="Normalize features to similar ranges for better model performance: Min-Max scales to 0-1 range, Standard Scaling centers data around mean with unit variance, Robust Scaling uses median and is resilient to outliers." 
+                                            />
+                                        </div>
 
                                         {trainFile ? (
                                             <div className="grid grid-cols-1 gap-3">
@@ -1397,8 +1470,12 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
                                     <div className="flex gap-x-3">
                                         <div className="dark:bg-[#212628] h-52 rounded-xl w-full bg-white p-2">
                                             <div className="flex items-center justify-between mb-1 mt-1">
-                                                <div className="font-semibold text-sm">
+                                                <div className="font-semibold text-sm flex items-center">
                                                     📊 Select Features for Effect Plot Comparisons
+                                                    <InfoTooltip 
+                                                        title="Effect Plot Features" 
+                                                        description="Choose which features to analyze in effect plots. These graphs show how each feature influences the model's predictions by varying feature values while keeping others constant. Useful for understanding feature impact on predictions." 
+                                                    />
                                                     <span className="text-xs font-normal text-gray-500 ml-2">
                                                         (Choose which features to compare against {selectedOutputColumn || 'target'})
                                                     </span>
