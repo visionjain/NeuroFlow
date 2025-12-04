@@ -252,10 +252,10 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
                         // Set default to final model
                         setSelectedModel("model.pkl");
                         
-                        // Save state again now that we have available models
+                        // Save state again now that we have available models (silent save)
                         // Small delay to ensure state is updated
                         setTimeout(() => {
-                            saveProjectState();
+                            saveProjectState(undefined, true);
                         }, 500);
                     }
                 } catch (error) {
@@ -654,7 +654,7 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
     );
 
     // Save project state to database
-    const saveProjectState = async (overrideState?: any) => {
+    const saveProjectState = async (overrideState?: any, silent: boolean = false) => {
         try {
             const state = overrideState || {
                 trainFile,
@@ -697,14 +697,14 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
 
             const data = await response.json();
             
-            if (data.success) {
+            if (data.success && !silent) {
                 toast.success('Project saved successfully', {
                     style: {
                         background: 'green',
                         color: 'white',
                     },
                 });
-            } else {
+            } else if (!data.success) {
                 console.error("Failed to save project state:", data.error);
             }
         } catch (error) {

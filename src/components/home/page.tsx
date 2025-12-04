@@ -255,8 +255,10 @@ const Home = () => {
                             <thead>
                                 <tr>
                                     <th className="p-2 border-b border-gray-700 w-8"></th>
-                                    <th className="p-2 border-b border-gray-700">Projects</th>
-                                    <th className="p-2 border-b border-gray-700 text-right"></th>
+                                    <th className="p-2 border-b border-gray-700">Project Name</th>
+                                    <th className="p-2 border-b border-gray-700">Algorithm</th>
+                                    <th className="p-2 border-b border-gray-700">Created At</th>
+                                    <th className="p-2 border-b border-gray-700 text-right">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -265,7 +267,25 @@ const Home = () => {
                                         <td className="p-2 border-b border-gray-700">
                                             <TfiWrite className="text-xl" />
                                         </td>
-                                        <td className="p-2 border-b border-gray-700">{project.topic} - {project.algorithm}</td>
+                                        <td className="p-2 border-b border-gray-700 font-medium">{project.topic}</td>
+                                        <td className="p-2 border-b border-gray-700">
+                                            <span className="px-2 py-1 rounded-md text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200">
+                                                {project.algorithm}
+                                            </span>
+                                        </td>
+                                        <td className="p-2 border-b border-gray-700 text-sm text-gray-600 dark:text-gray-400">
+                                            {project.createdAt 
+                                                ? new Date(project.createdAt).toLocaleString('en-IN', {
+                                                    day: '2-digit',
+                                                    month: 'short',
+                                                    year: 'numeric',
+                                                    hour: '2-digit',
+                                                    minute: '2-digit',
+                                                    hour12: true
+                                                  })
+                                                : 'N/A'
+                                            }
+                                        </td>
                                         <td className="p-2 border-b border-gray-700 text-right flex justify-end space-x-2">
                                             <Button
                                                 onClick={() => handleOpenProject(project._id)}
@@ -290,7 +310,7 @@ const Home = () => {
                                 ))}
                                 {projects.length === 0 && (
                                     <tr>
-                                        <td colSpan={3} className="p-4 text-center text-gray-500 dark:text-gray-400">
+                                        <td colSpan={5} className="p-4 text-center text-gray-500 dark:text-gray-400">
                                             No projects added yet.
                                         </td>
                                     </tr>
