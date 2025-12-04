@@ -9,6 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 
 interface LinearRegressionProps {
     projectName: string;
@@ -136,12 +137,9 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
             try {
                 const response = await fetch(`/api/users/projectstate?projectId=${projectId}`);
                 const data = await response.json();
-
-                console.log("📦 Received state data:", data);
                 
                 if (data.hasState && !data.isCorrupted) {
                     const state = data.state;
-                    console.log("📂 Restoring state:", state);
                     
                     // Restore all state
                     setTrainFile(state.trainFile || null);
@@ -176,7 +174,12 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
                     setModelTrained(state.modelTrained ?? false);
                     setAvailableModels(state.availableModels || []);
                     
-                    console.log("✅ Project state loaded successfully");
+                    toast.success('Project restored successfully', {
+                        style: {
+                            background: 'green',
+                            color: 'white',
+                        },
+                    });
                     
                     // Combine critical missing files and warnings
                     const allWarnings: string[] = [];
@@ -252,7 +255,6 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
                         // Save state again now that we have available models
                         // Small delay to ensure state is updated
                         setTimeout(() => {
-                            console.log("💾 Updating state with available models");
                             saveProjectState();
                         }, 500);
                     }
@@ -686,9 +688,6 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
                 modelTrained: true,
                 availableModels
             };
-
-            console.log("💾 Saving project state for project:", projectId);
-            console.log("State to save:", state);
             
             const response = await fetch('/api/users/projectstate', {
                 method: 'POST',
@@ -697,10 +696,14 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
             });
 
             const data = await response.json();
-            console.log("Save response:", data);
             
             if (data.success) {
-                console.log("✅ Project state saved successfully");
+                toast.success('Project saved successfully', {
+                    style: {
+                        background: 'green',
+                        color: 'white',
+                    },
+                });
             } else {
                 console.error("Failed to save project state:", data.error);
             }
