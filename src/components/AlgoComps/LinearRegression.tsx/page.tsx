@@ -859,6 +859,31 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
                     <div className="mt-2">
                         <TabsContent value="home">
                             <div className="border border-[rgb(61,68,77)] flex flex-col gap-3 dark:bg-[#0E0E0E] bg-[#E6E6E6] rounded-xl ml-4 mr-4 p-4">
+                                
+                                {/* Dataset Compatibility Info */}
+                                <div className="dark:bg-[#1a1d1f] bg-[#f5f5f5] rounded-xl p-4 border-2 border-green-500 dark:border-green-600">
+                                    <h3 className="text-lg font-bold mb-2 text-center">📋 Supported Dataset Types</h3>
+                                    <div className="grid grid-cols-3 gap-4 text-sm">
+                                        <div>
+                                            <p className="font-semibold text-green-600 dark:text-green-400">✅ Regression Problems:</p>
+                                            <p className="text-xs text-gray-600 dark:text-gray-400">Target: Continuous numeric values (prices, scores, quantities)</p>
+                                            <p className="text-xs text-gray-600 dark:text-gray-400">Examples: House prices, Sales forecast, Stock prices, Temperature prediction</p>
+                                        </div>
+                                        <div>
+                                            <p className="font-semibold text-blue-600 dark:text-blue-400">✅ Feature Support:</p>
+                                            <p className="text-xs text-gray-600 dark:text-gray-400">Numeric: int, float (any range)</p>
+                                            <p className="text-xs text-gray-600 dark:text-gray-400">Categorical: string, object (auto-encoded)</p>
+                                            <p className="text-xs text-gray-600 dark:text-gray-400">Mixed: Both numeric + categorical columns</p>
+                                        </div>
+                                        <div>
+                                            <p className="font-semibold text-purple-600 dark:text-purple-400">✅ Popular Datasets:</p>
+                                            <p className="text-xs text-gray-600 dark:text-gray-400">Housing: California, Boston</p>
+                                            <p className="text-xs text-gray-600 dark:text-gray-400">Medical: Diabetes progression, Insurance costs</p>
+                                            <p className="text-xs text-gray-600 dark:text-gray-400">Business: Sales, Revenue, Advertising ROI</p>
+                                        </div>
+                                    </div>
+                                </div>
+
                                 {/* First Row */}
                                 <div className="flex gap-x-3">
 
