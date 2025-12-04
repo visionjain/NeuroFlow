@@ -719,7 +719,7 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
                         <div className="font-bold flex items-center gap-3">
                             <Button
                                 onClick={() => router.push('/')}
-                                className="rounded-xl bg-blue-600 hover:bg-blue-700"
+                                className="rounded-xl border-2 border-[rgb(61,68,77)] bg-white dark:bg-[#0E0E0E] hover:bg-gray-100 dark:hover:bg-[#1a1a1a] text-black dark:text-white shadow-md"
                                 title="Back to Home"
                             >
                                 ← Back
@@ -773,7 +773,7 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
                             
                             {modelTrained && (
                                 <Button 
-                                    className="rounded-xl bg-red-600 hover:bg-red-700" 
+                                    className="rounded-xl border-2 border-red-500 dark:border-red-600 bg-white dark:bg-[#0E0E0E] hover:bg-red-50 dark:hover:bg-red-950 text-black dark:text-white shadow-md" 
                                     onClick={async () => {
                                         if (confirm("Are you sure you want to reset this project? All saved state will be cleared.")) {
                                             try {
