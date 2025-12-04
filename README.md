@@ -1,3 +1,8 @@
+<div align="center">
+  <img src="public/logo-icon.png" alt="NeuroFlow Icon" width="100" />
+  <img src="public/logo-full.png" alt="NeuroFlow" width="400" />
+</div>
+
 # 🧠 NeuroFlow
 
 **NeuroFlow** is a modern, no-code **AutoML platform** that empowers users to build, train, and deploy machine learning models without writing a single line of code. Built with Next.js and Python, NeuroFlow provides an intuitive interface for data scientists, analysts, and ML enthusiasts to perform end-to-end machine learning workflows.
