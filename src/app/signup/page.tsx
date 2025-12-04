@@ -108,22 +108,22 @@ const SignupU = () => {
 
   return (
     <div className='flex flex-col h-screen'>
-      <div className='pt-4 items-center justify-center flex italic text-2xl font-bold tracking-tight'>
-        <div
-          className="text-4xl font-bold italic tracking-tight"
-          style={{
-            background: "linear-gradient(to right, #5082EE, #D76572)",
-            WebkitBackgroundClip: "text",
-            WebkitTextFillColor: "transparent",
-            backgroundClip: "text",
-            color: "transparent",
-          }}
-        >
-          NeuroFlow.
+      <div className='pt-4 items-center justify-center flex'>
+        <div className="flex items-center gap-3">
+          <img 
+            src="/logo-icon.png" 
+            alt="NeuroFlow Icon" 
+            className="h-20 w-auto dark:brightness-110"
+          />
+          <img 
+            src="/logo-full.png" 
+            alt="NeuroFlow - No Code ML Platform" 
+            className="h-52 w-auto dark:brightness-110"
+          />
         </div>
       </div>
       <DarkModeButton />
-      <div className='flex-1 flex items-center justify-center'>
+      <div className='flex-1 flex items-center justify-center -mt-16'>
         <div>
           <Card className="w-[350px] border-[rgb(61,68,77)] dark:bg-[#212628]">
             <CardHeader className='flex items-center justify-center'>

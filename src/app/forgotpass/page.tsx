@@ -6,7 +6,7 @@ const Forgotpass = () => {
         <div>
             <DarkModeButton/>
             <div className='flex items-center justify-center h-screen text-5xl'>
-                Bana Raha hu BSDK
+                forgot pass page
             </div>
         </div>
     )

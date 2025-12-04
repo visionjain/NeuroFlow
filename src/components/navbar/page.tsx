@@ -96,18 +96,19 @@ const Nav: React.FC<NavProps> = ({ userDetails, userRole, loading }) => {
         >
           <div className="h-16 flex justify-between items-center rounded-10xl">
             <div
-              className="ml-4 mr-4 italic text-3xl font-bold tracking-tight cursor-pointer"
+              className="ml-4 mr-4 cursor-pointer flex items-center gap-3"
               onClick={homeredirect}
-              style={{
-                background: "linear-gradient(to right, #5082EE, #D76572)",
-                WebkitBackgroundClip: "text",
-                WebkitTextFillColor: "transparent",
-                backgroundClip: "text", // For non-Webkit browsers
-                color: "transparent",  // Ensure the text is fully transparent
-                zIndex: 10, // Ensure it renders above other styles
-              }}
             >
-              NeuroFlow.
+              <img 
+                src="/logo-icon.png" 
+                alt="NeuroFlow Icon" 
+                className="h-16 w-auto dark:brightness-110"
+              />
+              <img 
+                src="/logo-full.png" 
+                alt="NeuroFlow - No Code ML Platform" 
+                className="h-40 w-auto dark:brightness-110"
+              />
             </div>
 
             <div className="flex items-center space-x-2 mr-4">
@@ -195,8 +196,17 @@ const Nav: React.FC<NavProps> = ({ userDetails, userRole, loading }) => {
       <div className='h-14 relative z-50'>
         <div className={`fixed bg-white dark:bg-[#171717] top-0 left-0 right-0 ${darkMode && "dark"}`}>
           <div className='h-14 border-b border-black dark:border-white flex justify-between items-center'>
-            <div className='ml-4 mr-4 italic text-2xl font-bold tracking-tight cursor-pointer' onClick={homeredirect}>
-              NeuroFlow.
+            <div className='ml-4 mr-4 cursor-pointer flex items-center gap-3' onClick={homeredirect}>
+              <img 
+                src="/logo-icon.png" 
+                alt="NeuroFlow Icon" 
+                className="h-14 w-auto dark:brightness-110"
+              />
+              <img 
+                src="/logo-full.png" 
+                alt="NeuroFlow - No Code ML Platform" 
+                className="h-36 w-auto dark:brightness-110"
+              />
             </div>
             <div className='flex items-center space-x-2 mr-4'>
               <div className='mr-1'>
@@ -252,18 +262,19 @@ const Nav: React.FC<NavProps> = ({ userDetails, userRole, loading }) => {
         >
           <div className="h-16 flex justify-between items-center rounded-10xl">
             <div
-              className="ml-4 mr-4 italic text-3xl font-bold tracking-tight cursor-pointer"
+              className="ml-4 mr-4 cursor-pointer flex items-center gap-3"
               onClick={homeredirect}
-              style={{
-                background: "linear-gradient(to right, #5082EE, #D76572)",
-                WebkitBackgroundClip: "text",
-                WebkitTextFillColor: "transparent",
-                backgroundClip: "text", // For non-Webkit browsers
-                color: "transparent",  // Ensure the text is fully transparent
-                zIndex: 10, // Ensure it renders above other styles
-              }}
             >
-               NeuroFlow.
+              <img 
+                src="/logo-icon.png" 
+                alt="NeuroFlow Icon" 
+                className="h-16 w-auto dark:brightness-110"
+              />
+              <img 
+                src="/logo-full.png" 
+                alt="NeuroFlow - No Code ML Platform" 
+                className="h-40 w-auto dark:brightness-110"
+              />
             </div>
             <div className='flex items-center space-x-2 mr-4'>
               <Button onClick={loginredirect} className='px-[2vw] ml-2 mr-2' variant="default">Login</Button>
