@@ -99,6 +99,10 @@ def main():
     print(f"Python: {sys.version.split()[0]}")
     print("-" * 60)
     
+    def normalize_path(path):
+        """Convert path separators to forward slashes for consistent cross-platform handling"""
+        return path.replace('\\', '/')
+    
     # Parse JSON parameters
     train_columns = json.loads(args.train_columns)
     output_column = args.output_column
@@ -504,7 +508,7 @@ def main():
             path = os.path.join(output_dir, 'confusion_matrix.png')
             plt.savefig(path, dpi=100, bbox_inches='tight')
             plt.close()
-            generated_graphs.append(path)
+            generated_graphs.append(normalize_path(path))
         
         # 2. ROC Curve (Binary)
         if "ROC Curve" in selected_graphs and is_binary:
@@ -521,7 +525,7 @@ def main():
             path = os.path.join(output_dir, 'roc_curve.png')
             plt.savefig(path, dpi=100, bbox_inches='tight')
             plt.close()
-            generated_graphs.append(path)
+            generated_graphs.append(normalize_path(path))
         
         # 3. Precision-Recall Curve (Binary only)
         if "Precision-Recall Curve" in selected_graphs and is_binary:
@@ -536,7 +540,7 @@ def main():
             path = os.path.join(output_dir, 'precision_recall_curve.png')
             plt.savefig(path, dpi=100, bbox_inches='tight')
             plt.close()
-            generated_graphs.append(path)
+            generated_graphs.append(normalize_path(path))
         
         # 4. Feature Importance
         if "Feature Importance" in selected_graphs:
@@ -554,7 +558,7 @@ def main():
                 path = os.path.join(output_dir, 'feature_importance.png')
                 plt.savefig(path, dpi=100, bbox_inches='tight')
                 plt.close()
-                generated_graphs.append(path)
+                generated_graphs.append(normalize_path(path))
         
         # 5. Classification Report (Visual)
         if "Classification Report" in selected_graphs:
@@ -568,7 +572,7 @@ def main():
             path = os.path.join(output_dir, 'classification_report.png')
             plt.savefig(path, dpi=100, bbox_inches='tight')
             plt.close()
-            generated_graphs.append(path)
+            generated_graphs.append(normalize_path(path))
         
         # 6. Probability Distribution
         if "Probability Distribution" in selected_graphs and is_binary:
@@ -584,7 +588,7 @@ def main():
             path = os.path.join(output_dir, 'probability_distribution.png')
             plt.savefig(path, dpi=100, bbox_inches='tight')
             plt.close()
-            generated_graphs.append(path)
+            generated_graphs.append(normalize_path(path))
         
         # 7. Calibration Curve (Binary only)
         if "Calibration Curve" in selected_graphs and is_binary:
@@ -602,7 +606,7 @@ def main():
             path = os.path.join(output_dir, 'calibration_curve.png')
             plt.savefig(path, dpi=100, bbox_inches='tight')
             plt.close()
-            generated_graphs.append(path)
+            generated_graphs.append(normalize_path(path))
         
         # 8. Decision Boundary (2D) - Only for 2 features
         if "Decision Boundary (2D)" in selected_graphs and X_test.shape[1] >= 2:
@@ -640,7 +644,7 @@ def main():
                 path = os.path.join(output_dir, 'decision_boundary.png')
                 plt.savefig(path, dpi=100, bbox_inches='tight')
                 plt.close()
-                generated_graphs.append(path)
+                generated_graphs.append(normalize_path(path))
             except Exception as e:
                 print(f"⚠️ Could not generate decision boundary: {e}")
         
@@ -661,7 +665,7 @@ def main():
                 path = os.path.join(output_dir, 'class_separation_pca.png')
                 plt.savefig(path, dpi=100, bbox_inches='tight')
                 plt.close()
-                generated_graphs.append(path)
+                generated_graphs.append(normalize_path(path))
             except Exception as e:
                 print(f"⚠️ Could not generate PCA plot: {e}")
         
@@ -676,7 +680,7 @@ def main():
             path = os.path.join(output_dir, 'correlation_heatmap.png')
             plt.savefig(path, dpi=100, bbox_inches='tight')
             plt.close()
-            generated_graphs.append(path)
+            generated_graphs.append(normalize_path(path))
         
         # 11. Box Plot
         if "Box Plot" in selected_graphs:
@@ -692,7 +696,7 @@ def main():
             path = os.path.join(output_dir, 'box_plot.png')
             plt.savefig(path, dpi=100, bbox_inches='tight')
             plt.close()
-            generated_graphs.append(path)
+            generated_graphs.append(normalize_path(path))
         
         # 12. Histogram Distribution
         if "Histogram Distribution" in selected_graphs:
@@ -707,7 +711,7 @@ def main():
             path = os.path.join(output_dir, 'histogram_distribution.png')
             plt.savefig(path, dpi=100, bbox_inches='tight')
             plt.close()
-            generated_graphs.append(path)
+            generated_graphs.append(normalize_path(path))
         
         # 13-15. Effect Plots (requires effect_features)
         if effect_features and len(effect_features) > 0:
@@ -736,7 +740,7 @@ def main():
                 path = os.path.join(output_dir, 'individual_effect_plot.png')
                 plt.savefig(path, dpi=100, bbox_inches='tight')
                 plt.close()
-                generated_graphs.append(path)
+                generated_graphs.append(normalize_path(path))
             
             # Mean Effect Plot
             if "Mean Effect Plot" in selected_graphs:
@@ -761,7 +765,7 @@ def main():
                 path = os.path.join(output_dir, 'mean_effect_plot.png')
                 plt.savefig(path, dpi=100, bbox_inches='tight')
                 plt.close()
-                generated_graphs.append(path)
+                generated_graphs.append(normalize_path(path))
             
             # Trend Effect Plot
             if "Trend Effect Plot" in selected_graphs:
@@ -786,7 +790,7 @@ def main():
                 path = os.path.join(output_dir, 'trend_effect_plot.png')
                 plt.savefig(path, dpi=100, bbox_inches='tight')
                 plt.close()
-                generated_graphs.append(path)
+                generated_graphs.append(normalize_path(path))
         
         # 16. SHAP Summary Plot (requires shap library)
         if "Shap Summary Plot" in selected_graphs:
@@ -801,7 +805,7 @@ def main():
                 path = os.path.join(output_dir, 'shap_summary_plot.png')
                 plt.savefig(path, dpi=100, bbox_inches='tight')
                 plt.close()
-                generated_graphs.append(path)
+                generated_graphs.append(normalize_path(path))
             except Exception as e:
                 print(f"⚠️ SHAP plot requires 'shap' library: {e}")
         
@@ -825,7 +829,7 @@ def main():
             path = os.path.join(output_dir, 'learning_curve_all_folds.png')
             plt.savefig(path, dpi=100, bbox_inches='tight')
             plt.close()
-            generated_graphs.append(path)
+            generated_graphs.append(normalize_path(path))
         
         if "Learning Curve - Overall" in selected_graphs:
             current_graph += 1
@@ -852,7 +856,7 @@ def main():
             path = os.path.join(output_dir, 'learning_curve_overall.png')
             plt.savefig(path, dpi=100, bbox_inches='tight')
             plt.close()
-            generated_graphs.append(path)
+            generated_graphs.append(normalize_path(path))
         
         # Graph generation completed
         if total_graphs > 0:
