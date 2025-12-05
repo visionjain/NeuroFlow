@@ -9,6 +9,7 @@ import CopyRight from "@/components/copybar/page";
 import Loader from "@/components/loader/page";
 import LinearRegressionComponent from "@/components/AlgoComps/LinearRegression.tsx/page";
 import LogisticRegressionComponent from "@/components/AlgoComps/LogisticRegression.tsx/page";
+import KNNComponent from "@/components/AlgoComps/KNN/page";
 
 
 const ProjectPage = () => {
@@ -101,12 +102,12 @@ const ProjectPage = () => {
             />
           )}
           {projectDetails.ProjectAlgo === "knn" && (
-            <div className="flex items-center justify-center h-full">
-              <div className="text-center">
-                <h2 className="text-3xl font-bold mb-4">🚧 KNN Algorithm</h2>
-                <p className="text-xl text-gray-500">Coming Soon...</p>
-              </div>
-            </div>
+            <KNNComponent
+              projectName={projectDetails.projectName}
+              projectAlgo={projectDetails.ProjectAlgo}
+              projectTime={projectDetails.ProjectTime}
+              projectId={projectDetails.projectId}
+            />
           )}
         </div>
         <CopyRight />

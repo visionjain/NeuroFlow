@@ -658,7 +658,10 @@ const LogisticRegressionComponent: React.FC<LogisticRegressionProps> = ({ projec
         reader.onload = (e) => {
             const text = e.target?.result as string;
             const firstLine = text.split('\n')[0];
-            const columns = firstLine.split(',').map(col => col.trim().replace(/["\r]/g, ''));
+            // Remove quotes from column names if present (handles both single and double quotes)
+            const columns = firstLine.split(',').map(col => 
+                col.trim().replace(/^["']|["']$/g, '').replace(/\r/g, '')
+            );
             setTrainColumns(columns);
         };
         reader.readAsText(file);

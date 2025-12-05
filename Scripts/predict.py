@@ -54,6 +54,21 @@ def main():
         # Determine numeric columns
         numeric_cols = [col for col in original_train_columns if col not in categorical_cols]
         
+        # Check if final_feature_names seems incorrect for one-hot encoding
+        if (encoding_type.lower() in ['onehot', 'one-hot']) and len(categorical_cols) > 0:
+            # If using one-hot encoding with categorical columns, final_feature_names should be expanded
+            if len(final_feature_names) == len(original_train_columns):
+                print("=" * 80, file=sys.stderr)
+                print("❌ ERROR: OLD MODEL FORMAT DETECTED", file=sys.stderr)
+                print("=" * 80, file=sys.stderr)
+                print("This model was trained with an older version.", file=sys.stderr)
+                print("The preprocessing info doesn't contain expanded one-hot column names.", file=sys.stderr)
+                print("", file=sys.stderr)
+                print("🔄 SOLUTION: Please retrain the model to use predictions.", file=sys.stderr)
+                print("=" * 80, file=sys.stderr)
+                print("RETRAIN_REQUIRED", file=sys.stderr)
+                sys.exit(1)
+        
         # Parse input values (should be a dict: {feature_name: value})
         input_data = json.loads(args.input_values)
         
@@ -66,7 +81,8 @@ def main():
         df = pd.DataFrame([input_data], columns=original_train_columns)
         
         # Apply same encoding as during training
-        if encoding_type.lower() == "one-hot":
+        encoding_type_normalized = encoding_type.lower().replace('-', '')  # 'one-hot' -> 'onehot'
+        if encoding_type_normalized in ['onehot']:
             print(f"DEBUG: Applying One-Hot encoding", file=sys.stderr)
             print(f"DEBUG: DataFrame before encoding:\n{df.to_dict()}", file=sys.stderr)
             
@@ -84,27 +100,27 @@ def main():
             else:
                 df_numeric = pd.DataFrame()
             
-            # For each categorical column, find which one-hot columns exist in final features
+            # Create all one-hot encoded columns from final_feature_names
+            # Initialize all one-hot columns to 0
             onehot_data = {}
+            numeric_feature_names = [f for f in final_feature_names if f in numeric_cols]
+            onehot_feature_names = [f for f in final_feature_names if f not in numeric_cols]
+            
+            # Initialize all one-hot columns to 0
+            for onehot_col in onehot_feature_names:
+                onehot_data[onehot_col] = 0
+            
+            # Set the appropriate one-hot columns to 1 based on input values
             for cat_col in categorical_cols:
-                # Find all one-hot columns for this categorical
-                onehot_cols_for_this = [f for f in final_feature_names if f.startswith(f"{cat_col}_")]
-                
-                # Get the input value for this categorical column
                 input_value = str(df[cat_col].values[0])
                 expected_col_name = f"{cat_col}_{input_value}"
                 
-                print(f"DEBUG: Category '{cat_col}' = '{input_value}'", file=sys.stderr)
-                print(f"DEBUG: Looking for column: '{expected_col_name}'", file=sys.stderr)
-                print(f"DEBUG: Available one-hot columns: {onehot_cols_for_this[:5]}...", file=sys.stderr)
-                
-                # Create dummy columns for this categorical
-                for onehot_col in onehot_cols_for_this:
-                    if onehot_col == expected_col_name:
-                        onehot_data[onehot_col] = 1
-                        print(f"DEBUG: Set {onehot_col} = 1 (MATCH!)", file=sys.stderr)
-                    else:
-                        onehot_data[onehot_col] = 0
+                # Set to 1 if this column exists in final_feature_names
+                if expected_col_name in onehot_data:
+                    onehot_data[expected_col_name] = 1
+                    print(f"DEBUG: Set {expected_col_name} = 1", file=sys.stderr)
+                else:
+                    print(f"DEBUG: {expected_col_name} not in final features (likely dropped with drop_first=True)", file=sys.stderr)
             
             # Combine numeric and one-hot encoded columns
             onehot_df = pd.DataFrame([onehot_data])
@@ -113,7 +129,7 @@ def main():
             print(f"DEBUG: DataFrame after manual one-hot - Columns: {df.columns.tolist()}", file=sys.stderr)
             print(f"DEBUG: Non-zero values: {(df != 0).sum().sum()}", file=sys.stderr)
             
-        elif encoding_type.lower() == "label":
+        elif encoding_type_normalized == "label":
             print(f"DEBUG: Applying Label encoding", file=sys.stderr)
             
             # Apply label encoding using saved encoders
@@ -138,7 +154,7 @@ def main():
             
             print(f"DEBUG: Label encoding completed. Final shape: {df.shape}", file=sys.stderr)
                         
-        elif encoding_type.lower() == "target":
+        elif encoding_type_normalized == "target":
             print(f"DEBUG: Applying Target encoding", file=sys.stderr)
             
             if target_means:
@@ -172,7 +188,7 @@ def main():
             
             print(f"DEBUG: Target encoding completed. Final shape: {df.shape}", file=sys.stderr)
                     
-        elif encoding_type.lower() == "none":
+        elif encoding_type_normalized == "none":
             print(f"DEBUG: No encoding applied - using only numeric features", file=sys.stderr)
             
             # Convert all numeric columns
@@ -219,15 +235,27 @@ def main():
         print(f"DEBUG: Raw prediction value: {prediction_value}", file=sys.stderr)
         print(f"DEBUG: Target '{target_name}' is binary classification: {is_binary}", file=sys.stderr)
         
-        # Apply clipping based on training target type
-        if is_binary:
-            # Binary classification - clip to [0, 1] probability range
-            final_value = float(np.clip(prediction_value, 0.0, 1.0))
-            print(f"DEBUG: Applied binary classification clipping: {prediction_value} → {final_value}", file=sys.stderr)
+        # Check if we need to decode the prediction using label_encoder
+        label_encoder = preprocessing_info.get('label_encoder', None)
+        if label_encoder is not None:
+            # Decode the prediction back to original label
+            try:
+                decoded_prediction = label_encoder.inverse_transform([int(prediction_value)])[0]
+                print(f"DEBUG: Decoded prediction: {prediction_value} → {decoded_prediction}", file=sys.stderr)
+                final_value = decoded_prediction
+            except Exception as e:
+                print(f"WARNING: Could not decode prediction: {str(e)}", file=sys.stderr)
+                final_value = float(prediction_value)
         else:
-            # Regression - keep raw value
-            final_value = float(prediction_value)
-            print(f"DEBUG: Regression - using raw prediction: {final_value}", file=sys.stderr)
+            # Apply clipping based on training target type
+            if is_binary:
+                # Binary classification - clip to [0, 1] probability range
+                final_value = float(np.clip(prediction_value, 0.0, 1.0))
+                print(f"DEBUG: Applied binary classification clipping: {prediction_value} → {final_value}", file=sys.stderr)
+            else:
+                # Regression - keep raw value
+                final_value = float(prediction_value)
+                print(f"DEBUG: Regression - using raw prediction: {final_value}", file=sys.stderr)
         
         print(f"DEBUG: Final prediction value: {final_value}", file=sys.stderr)
         

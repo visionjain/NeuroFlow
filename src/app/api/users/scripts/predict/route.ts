@@ -124,12 +124,16 @@ export async function POST(req: NextRequest) {
             const isBinaryMatch = errorOutput.match(/IS_BINARY:(True|False)/);
             
             if (predictionMatch) {
-              const prediction = parseFloat(predictionMatch[1].trim());
+              const predictionStr = predictionMatch[1].trim();
               const isBinary = isBinaryMatch ? isBinaryMatch[1] === 'True' : null;
+              
+              // Try to parse as number, if it fails, keep as string (categorical prediction)
+              const parsedNumber = parseFloat(predictionStr);
+              const prediction = isNaN(parsedNumber) ? predictionStr : parsedNumber.toFixed(4);
               
               resolve(
                 NextResponse.json({
-                  prediction: prediction.toFixed(4),
+                  prediction: prediction,
                   is_binary: isBinary,
                   raw_output: output,
                 })

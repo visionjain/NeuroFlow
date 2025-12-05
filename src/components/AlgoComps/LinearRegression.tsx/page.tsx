@@ -324,7 +324,10 @@ const LinearRegressionComponent: React.FC<LinearRegressionProps> = ({ projectNam
                     const result = e.target?.result as string;
                     if (result) {
                         const firstLine = result.split("\n")[0];
-                        const columns = firstLine.split(",").map(col => col.trim()); // Handle spaces
+                        // Remove quotes from column names if present
+                        const columns = firstLine.split(",").map(col => 
+                            col.trim().replace(/^["']|["']$/g, '')
+                        );
                         setTrainColumns(columns);
                     }
                 };

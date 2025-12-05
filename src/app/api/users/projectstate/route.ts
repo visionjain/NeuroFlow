@@ -66,8 +66,17 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      // Check if model directory exists
-      const modelDirName = `linearregression-${project.state.trainFile?.split(".")[0]}`;
+      // Check if model directory exists - use correct algorithm prefix
+      let algorithmPrefix = 'linearregression';
+      if (project.algorithm === 'logistic') {
+        algorithmPrefix = 'logistic';
+      } else if (project.algorithm === 'knn') {
+        algorithmPrefix = 'knn';
+      } else if (project.algorithm === 'linear') {
+        algorithmPrefix = 'linearregression';
+      }
+      
+      const modelDirName = `${algorithmPrefix}-${project.state.trainFile?.split(".")[0]}`;
       const modelDir = path.join(project.state.datasetPath, modelDirName);
       
       if (!fs.existsSync(modelDir)) {
