@@ -96,9 +96,7 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 ### Currently Available
 - ✅ **Linear Regression**
 - ✅ **Logistic Regression**
-
-### Coming Soon
-- 🔜 K-Nearest Neighbors (KNN)
+- ✅ **K-Nearest Neighbors (KNN)**
 
 ---
 
