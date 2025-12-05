@@ -65,7 +65,17 @@ Create a `.env` file in the root directory:
 MONGO_URI=your_mongodb_connection_string
 TOKEN_SECRET=your_jwt_secret_key
 DOMAIN=http://localhost:3000
+
+# Email Configuration (Gmail)
+EMAIL_USER=your-email@gmail.com
+EMAIL_PASSWORD=your-gmail-app-password
 ```
+
+#### 📧 Setting up Gmail for Email Features
+1. Go to your Google Account → **Security** → **2-Step Verification** (enable it)
+2. Scroll to **App passwords** and generate a new app password
+3. Use your Gmail and the generated app password in the `.env` file
+4. This enables email verification and password reset features
 
 ### 4. Run Development Server
 ```bash
